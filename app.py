@@ -46,15 +46,35 @@ with col2:
     applica_gestione = st.checkbox("Applica Oneri Gestione Polis (10%)", value=True)
 
 # --- LOGICA DI CALCOLO ---
-f_new = 1.1 if (t_new == "BT" and p_new <= 30) else 1.0
-f_att = 1.1 if ("Nuova" not in pratica and p_att <= 30) else 1.0
-px = TIC_2026["MT"] if t_new == "MT" else (TIC_2026["DOM_LE6"] if (tipo_utenza == "Domestico" and p_new <= 6) else TIC_2026["BT_ALTRI"])
+    is_spostamento = "Spostamento" in pratica
+    p_new, p_att, f_new, dist_spostamento = 0.0, 0.0, 1.0, ""
+	
+																									  
+																					
 
-if "Spostamento" in pratica:
-    c_tec = TIC_2026["SPOST_ENTRO_10"]
-else:
-    c_tec = max(0.0, (p_new * f_new) - (p_att * f_att)) * px
+    if is_spostamento:
+        dist_spostamento = st.radio("Distanza Spostamento", ["Entro 10 metri", "Oltre 10 metri"], horizontal=True)
+        c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in dist_spostamento else TIC_2026["SPOST_OLTRE_10"]
+        desc_riga_1 = f"Corrispettivo Fisso Spostamento ({dist_spostamento})"
+    else:
+        c_p1, c_p2 = st.columns(2)
+        p_att = c_p1.number_input("Potenza Attuale (kW)", min_value=0.0, value=3.0) if "Nuova" not in pratica else 0.0
+        p_new = c_p2.number_input("Nuova Potenza Richiesta (kW)", min_value=0.1, value=6.0)
+        
+        t_new = st.selectbox("Tensione Richiesta", ["BT", "MT"] if tipo_utenza == "Altri Usi" else ["BT"])
+        f_new = 1.1 if (t_new == "BT" and p_new <= 30) else 1.0
+        f_att = 1.1 if ("Nuova" not in pratica and p_att <= 30) else 1.0
+        px = TIC_2026["MT"] if t_new == "MT" else (TIC_2026["DOM_LE6"] if (tipo_utenza == "Domestico" and p_new <= 6) else TIC_2026["BT_ALTRI"])
+        
+        c_tec = max(0.0, (p_new * f_new) - (p_att * f_att)) * px
+        desc_riga_1 = f"Quota Potenza TIC ({p_new*f_new:.2f} kW Pd)"
 
+    applica_gestione = st.checkbox("Applica Oneri Gestione Polis (10%)", value=True)
+									  
+	 
+															
+
+# --- LOGICA DI CALCOLO FINALE ---
 c_gest = (c_tec + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if applica_gestione else 0.0
 tot_sogg_iva = c_tec + c_gest + TIC_2026["ISTRUTTORIA"]
 bollo_2 = 2.0 if (uso == "Esente" and tot_sogg_iva > 77.47) else 0.0
@@ -63,6 +83,25 @@ aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or is_split) else 0.0)
 tot_iva = tot_sogg_iva * aliq
 tot_finale = (tot_sogg_iva if is_split else tot_sogg_iva + tot_iva) + bollo_2
 
+# --- ANTEPRIMA A VIDEO ---
+st.divider()
+st.subheader("📊 Anteprima Calcoli")
+v1, v2, v3, v4 = st.columns(4)
+v1.metric("Tipo Quota", "Fissa (Spost.)" if is_spostamento else f"{p_new * f_new:.2f} kW")
+v2.metric("Imponibile", f"{tot_sogg_iva:.2f} €")
+v3.metric("IVA", f"{tot_iva:.2f} €")
+v4.metric("TOTALE", f"{tot_finale:.2f} €")
+
+# --- FUNZIONE PDF ---
+def genera_pdf():
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Header Blu
+    pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
+		
+    try: pdf.image("logo_polis.png", x=10, y=10, w=45)
+    except: pass
 # --- ANTEPRIMA A VIDEO ---
 st.divider()
 st.subheader("📊 Anteprima Calcoli")
@@ -111,8 +150,8 @@ def genera_pdf():
     
     pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
     
-    # Riga 1: Quota Tecnica (TIC)
-    pdf.cell(140, 9, f" Costo Intervento TIC ({p_new*f_new:.2f} kW Pd)", 1)
+    # Riga 1: Quota Tecnica (TIC)    
+    pdf.cell(140, 9, f" {desc_riga_1}", 1)
     pdf.cell(50, 9, f"{c_tec:.2f} EUR", 1, 1, 'R')
     
     # Riga 2: Oneri Amministrativi (Istruttoria)
