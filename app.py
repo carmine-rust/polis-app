@@ -59,7 +59,7 @@ def genera_pdf(d):
         pdf.cell(140, 8, " Quota Distanza", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 8, " Oneri Istruttoria Pratica", 1); pdf.cell(50, 8, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
     
-   pdf.set_font("Helvetica", "B", 9)
+    pdf.set_font("Helvetica", "B", 9)
     pdf.cell(190, 8, " ONERI PROFESSIONALI POLIS ENERGIA", 1, 1, 'L', True)
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['c_gest']:.2f} EUR", 1, 1, 'R')
