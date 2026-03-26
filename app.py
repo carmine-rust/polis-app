@@ -48,7 +48,7 @@ def genera_pdf(d):
     pdf.cell(190, 8, " ONERI DISTRIBUTORE", 1, 1, 'L', True)
     pdf.set_font("Helvetica", "", 10)
     
-    # Descrizione Potenza
+    # Descrizione Potenza con franchigia indicata
     f_text = " (incl. franchigia 10%)" if d['f_new'] > 1.0 else " (Potenza Nominale)"
     pdf.cell(140, 8, f" Quota Potenza: da {d['p_att']} kW a {d['p_new']} kW {f_text}", 1)
     pdf.cell(50, 8, f"{d['c_tec']:.2f} EUR", 1, 1, 'R')
@@ -76,9 +76,9 @@ def genera_pdf(d):
 
 # --- INTERFACCIA ---
 st.title("⚡ POLIS ENERGIA SUITE")
-st.caption(f"v73.7 | Codice Unico: {st.session_state.codice_causale}")
+st.caption(f"v73.8 | Codice: {st.session_state.codice_causale}")
 
-if st.button("🔴 RESET"):
+if st.button("🔴 RESET CAMPI"):
     reset_campi()
 
 st.divider()
@@ -86,58 +86,58 @@ st.divider()
 with st.form("main_form"):
     c1, c2 = st.columns(2)
     with c1:
+        st.subheader("Dati Cliente")
         nome = st.text_input("Ragione Sociale", key="n_f").upper()
         indirizzo = st.text_input("Indirizzo", key="i_f")
         uso = st.selectbox("Regime IVA", ["IVA 10%", "IVA 22%", "P.A.", "Esente"], key="v_f")
         pod = st.text_input("POD", key="p_f").upper()
 
     with c2:
-        pratica = st.selectbox("Pratica", ["Nuova Connessione", "Aumento Potenza", "Subentro con Modifica", "Spostamento"], key="pr_f")
-        tipo_ut = st.radio("Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="ut_f")
+        st.subheader("Configurazione Tecnica")
+        pratica = st.selectbox("Tipo di Pratica", ["Nuova Connessione", "Aumento Potenza", "Subentro con Modifica", "Spostamento"], key="pr_f")
+        tipo_ut = st.radio("Tipologia Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="ut_f")
         
-        # --- LOGICA POTENZE (RIFORMULATA) ---
-        p_att_val, p_new_val = 0.0, 0.0
+        # Inizializziamo le variabili per evitare NameError
+        p_att_val = 0.0
+        p_new_val = 0.0
         c_dist_manuale = 0.0
         
         if "Spostamento" in pratica:
-            s_choice = st.radio("Distanza", ["Entro 10m", "Oltre 10m"], horizontal=True)
+            s_choice = st.radio("Distanza dello Spostamento", ["Entro 10m", "Oltre 10m"], horizontal=True)
             if "Oltre" in s_choice:
-                c_dist_manuale = st.number_input("Quota Distanza Distributore (€)", value=0.0)
+                c_dist_manuale = st.number_input("Quota Distanza (€)", value=0.0, step=10.0)
         else:
-            col_pot1, col_pot2 = st.columns(2)
-            # Mostra la potenza di partenza se NON è una nuova connessione
-            with col_pot1:
-                if "Nuova" not in pratica:
-                    p_att_val = st.number_input("Potenza Attuale (kW)", value=3.0, step=0.5)
-                else:
-                    st.write("Potenza Attuale: 0 kW")
-            with col_pot2:
-                p_new_val = st.number_input("Nuova Richiesta (kW)", value=6.0, step=0.5)
+            # MOSTRA SEMPRE IL CAMPO POTENZA ATTUALE SE NON È NUOVA CONNESSIONE
+            if "Nuova" not in pratica:
+                p_att_val = st.number_input("Potenza Attuale in kW (Contrattuale)", value=3.0, step=0.5)
+            
+            p_new_val = st.number_input("Nuova Potenza Richiesta (kW)", value=6.0, step=0.5)
             
             if "Nuova" in pratica:
-                c_dist_manuale = st.number_input("Quota Distanza Distributore (€)", value=0.0)
+                c_dist_manuale = st.number_input("Quota Distanza (€)", value=0.0, step=10.0)
                 
-        app_gest = st.checkbox("Gestione Polis (10%)", value=True)
+        app_gest = st.checkbox("Applica Gestione Polis (10%)", value=True)
     
-    submit = st.form_submit_button("📁 CALCOLA E GENERA")
+    submit = st.form_submit_button("📁 CALCOLA E GENERA PDF")
 
-# --- CALCOLI POST-SUBMIT ---
+# --- CALCOLI FINALI ---
 if submit:
     if nome and indirizzo:
-        # 1. Calcolo kW con soglia 30 kW
+        # Logica Franchigia 30kW e Limitatore 1.1
         f_att = 1.1 if p_att_val <= 30 else 1.0
         f_new = 1.1 if p_new_val <= 30 else 1.0
         
-        # 2. Quota Tecnica
+        # Definizione Tariffa TIC
         px = TIC_2026["DOM_LE6"] if (tipo_ut == "Domestico" and p_new_val <= 6) else TIC_2026["BT_ALTRI"]
         
+        # Calcolo Quota Tecnica
         if "Spostamento" in pratica:
             c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
         else:
             diff_kw = max(0.0, (p_new_val * f_new) - (p_att_val * f_att))
             c_tec = diff_kw * px
             
-        # 3. Altri Oneri
+        # Altri Oneri e Tasse
         c_gest = (c_tec + c_dist_manuale + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
         imp = c_tec + c_dist_manuale + c_gest + TIC_2026["ISTRUTTORIA"]
         iva_p = 10 if "10" in uso else (22 if ("22" in uso or "P.A." in uso) else 0)
@@ -152,9 +152,9 @@ if submit:
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
         
-        st.success(f"Dati calcolati con successo per {nome}!")
+        st.success(f"Preventivo pronto per {nome}. Potenza considerata: {p_new_val} kW.")
         pdf_out = genera_pdf(dati)
         fname = f"Preventivo_{clean_filename(nome)}.pdf"
-        st.download_button("📥 SCARICA ORA IL PDF", data=bytes(pdf_out), file_name=fname, use_container_width=True)
+        st.download_button("📥 SCARICA PDF", data=bytes(pdf_out), file_name=fname, use_container_width=True)
     else:
-        st.error("Ragione Sociale e Indirizzo sono obbligatori!")
+        st.error("⚠️ Errore: Inserisci Ragione Sociale e Indirizzo.")
