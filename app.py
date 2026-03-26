@@ -155,7 +155,7 @@ def genera_pdf():
     # Firme
     pdf.ln(15); pdf.set_font("Helvetica", "B", 9)
     
-    pdf.cell(95, 5, "Per Accettazione Cliente", ln=1, align='R')
+    pdf.cell(105, 5, "Per Accettazione Cliente", ln=1, align='R')
     pdf.ln(10)
     pdf.line(10, pdf.get_y(), 70, pdf.get_y())
     pdf.line(140, pdf.get_y(), 200, pdf.get_y())
