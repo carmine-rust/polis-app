@@ -71,7 +71,7 @@ def genera_pdf(d):
     pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['totale']:.2f} EUR", 1, 1, 'R', True)
     
     pdf.ln(10); pdf.set_font("Helvetica", "I", 8)
-    pdf.multi_cell(190, 4, f"Causale: {st.session_state.codice_causale}\nIBAN: IT80P0103015200000007044056 - MPS")
+    pdf.multi_cell(190, 4, f"Causale: {st.session_state.codice_causale}\nIBAN:PolisEnergia srl - IT80P0103015200000007044056 - Monte dei Paschi di Siena")
     return pdf.output()
 
 # --- INTERFACCIA ---
