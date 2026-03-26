@@ -34,7 +34,6 @@ def genera_pdf(d):
     pdf = FPDF()
     pdf.add_page()
     pdf.add_font('Lato', '', 'Lato-Regular.ttf', uni=True)
-    pdf.add_font('Lato', '', 'Lato-Bold.ttf', uni=True)
     pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
     if os.path.exists("logo_polis.png"):
         pdf.image("logo_polis.png", 10, 10, 33)
