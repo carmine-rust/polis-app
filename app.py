@@ -3,6 +3,7 @@ import math
 import random
 import string
 import re
+import pandas as pd
 from fpdf import FPDF
 
 # --- CONFIGURAZIONE ---
@@ -74,7 +75,7 @@ def genera_pdf(d):
 
 # --- INTERFACCIA ---
 st.title("⚡ POLIS ENERGIA SUITE")
-st.caption(f"v74.3 | Codice: {st.session_state.codice_causale}")
+st.caption(f"v74.4 | Codice: {st.session_state.codice_causale}")
 
 if st.button("🔴 RESET / PULISCI TUTTI I CAMPI"):
     reset_campi()
@@ -84,61 +85,55 @@ st.divider()
 with st.form("main_form"):
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("1. Dati Cliente")
+        st.subheader("📋 1. Dati Cliente")
         nome = st.text_input("Ragione Sociale").upper()
         indirizzo = st.text_input("Indirizzo")
         uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"])
         pod = st.text_input("POD").upper()
 
     with c2:
-        st.subheader("2. Dati Tecnici")
+        st.subheader("⚙️ 2. Dati Tecnici")
         pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"])
         tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True)
         
-        # Inizializzazione variabili per evitare errori
+        # Inizializzazione
         p_att, p_new, c_dist = 0.0, 0.0, 0.0
         t_att, t_new = "BT", "BT"
 
-        # --- BLOCCO AUMENTO / SUBENTRO ---
-        if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
-            col_p1, col_p2 = st.columns(2)
-            p_att = col_p1.number_input("Potenza ATTUALE (kW)", value=3.0, step=0.5)
-            p_new = col_p2.number_input("Potenza RICHIESTA (kW)", value=6.0, step=0.5)
-            
-            if tipo_ut == "Altri Usi":
-                flag_mt = st.checkbox("Passaggio da BT a MT?")
-                if flag_mt:
-                    t_att, t_new = "BT", "MT"
-                else:
-                    t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
-            # QUI NON C'È QUOTA DISTANZA
+        # FLAG PASSAGGIO TENSIONE (IMMEDIATO)
+        if tipo_ut == "Altri Usi":
+            flag_mt = st.checkbox("🔄 Passaggio da BT a MT?")
+            if flag_mt:
+                t_att, t_new = "BT", "MT"
+            else:
+                t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
 
-        # --- BLOCCO NUOVA CONNESSIONE ---
+        # SEZIONE POTENZA / DISTANZA
+        st.markdown("---")
+        if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
+            cp1, cp2 = st.columns(2)
+            p_att = cp1.number_input("Potenza ATTUALE (kW)", value=3.0, step=0.5)
+            p_new = cp2.number_input("Potenza RICHIESTA (kW)", value=6.0, step=0.5)
+        
         elif pratica == "Nuova Connessione":
             p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
-            c_dist = st.number_input("Quota Distanza Distributore (€)", value=0.0)
-            if tipo_ut == "Altri Usi":
-                t_new = t_att = st.radio("Tensione", ["BT", "MT"], horizontal=True)
-
-        # --- BLOCCO SPOSTAMENTO ---
+            c_dist = st.number_input("Quota Distanza (€)", value=0.0)
+            
         elif pratica == "Spostamento":
-            s_choice = st.radio("Distanza Spostamento", ["Entro 10m", "Oltre 10m"], horizontal=True)
+            s_choice = st.radio("Distanza", ["Entro 10m", "Oltre 10m"], horizontal=True)
             if s_choice == "Oltre 10m":
                 c_dist = st.number_input("Quota Distanza (€)", value=0.0)
-            # Potenza non rilevante o fissa
 
         app_gest = st.checkbox("Gestione Polis (10%)", value=True)
     
-    submit = st.form_submit_button("📁 GENERA PREVENTIVO")
+    submit = st.form_submit_button("📁 CALCOLA E GENERA")
 
-# --- CALCOLO ---
+# --- MOTORE DI CALCOLO E ANTEPRIMA ---
 if submit:
     if nome and indirizzo:
-        # Coefficienti Franchigia
         f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
         f_new = 1.1 if (t_new == "BT" and p_new <= 30) else 1.0
         
-        # Tariffe
         def get_tariffa(tens, pot, ut):
             if tens == "MT": return TIC_2026["MT"]
             if ut == "Domestico" and pot <= 6: return TIC_2026["DOM_LE6"]
@@ -147,13 +142,11 @@ if submit:
         px_att = get_tariffa(t_att, p_att, tipo_ut)
         px_new = get_tariffa(t_new, p_new, tipo_ut)
         
-        # Quota Tecnica
         if pratica == "Spostamento":
             c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
         else:
             c_tec = max(0.0, (p_new * f_new * px_new) - (p_att * f_att * px_att))
             
-        # Oneri e Tasse
         c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
         imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
         iva_p = 10 if "10" in uso else (22 if ("22" in uso or "P.A." in uso) else 0)
@@ -168,8 +161,15 @@ if submit:
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
         
-        st.success("Preventivo elaborato con successo.")
+        # --- ANTEPRIMA A VIDEO ---
+        st.subheader("🔍 Anteprima Calcolo")
+        res_data = {
+            "Descrizione": ["Quota Potenza", "Quota Distanza", "Oneri Istruttoria", "Gestione Polis", "Imponibile", "IVA", "Marca da Bollo", "TOTALE"],
+            "Valore (€)": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{TIC_2026['ISTRUTTORIA']:.2f}", f"{c_gest:.2f}", f"{imp:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{tot:.2f}**"]
+        }
+        st.table(pd.DataFrame(res_data))
+        
         pdf_file = genera_pdf(dati)
-        st.download_button("📥 SCARICA PDF", data=bytes(pdf_file), file_name=f"Prev_{clean_filename(nome)}.pdf", use_container_width=True)
+        st.download_button("📥 SCARICA PREVENTIVO PDF", data=bytes(pdf_file), file_name=f"Prev_{clean_filename(nome)}.pdf", use_container_width=True)
     else:
-        st.error("Inserire Ragione Sociale e Indirizzo!")
+        st.error("⚠️ Errore: Inserire Ragione Sociale e Indirizzo!")
