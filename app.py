@@ -90,8 +90,8 @@ def genera_pdf():
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(80, 5, "POLIS ENERGIA SRL", ln=True, align='R')
     pdf.set_font("Helvetica", "", 8)
-    pdf.cell(80, 4, "Sede Operativa: Ufficio Tecnico", ln=True, align='R')
-    pdf.cell(80, 4, "www.polisenergia.it", ln=True, align='R')
+    pdf.cell(0, 4, "Sede Operativa: Via Terre delle Risaie 4 - 84131 Salerno (SA)", ln=True, align='R')
+    pdf.cell(0, 4, "www.polisenergia.it", ln=True, align='R')
     
     # Destinatario
     pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0)
@@ -112,16 +112,16 @@ def genera_pdf():
     pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
     
     # Riga 1: Quota Tecnica (TIC)
-    pdf.cell(140, 9, f" Quota Potenza TIC ({p_new*f_new:.2f} kW Pd)", 1)
+    pdf.cell(140, 9, f" Costo Intervento TIC ({p_new*f_new:.2f} kW Pd)", 1)
     pdf.cell(50, 9, f"{c_tec:.2f} EUR", 1, 1, 'R')
     
     # Riga 2: Oneri Amministrativi (Istruttoria)
-    pdf.cell(140, 9, " Oneri Amministrativi di Istruttoria", 1)
+    pdf.cell(140, 9, " Oneri Amministrativi ", 1)
     pdf.cell(50, 9, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
     
     # Riga 3: Gestione (se applicata)
     if applica_gestione:
-        pdf.cell(140, 9, " Oneri di Gestione PolisEnergia (10%)", 1)
+        pdf.cell(140, 9, " Oneri di Gestione Pratica", 1)
         pdf.cell(50, 9, f"{c_gest:.2f} EUR", 1, 1, 'R')
     
     # Riga 4: Bollo (se applicato)
@@ -154,7 +154,6 @@ def genera_pdf():
     
     # Firme
     pdf.ln(15); pdf.set_font("Helvetica", "B", 9)
-    pdf.cell(95, 5, "Per PolisEnergia s.r.l.", ln=0)
     pdf.cell(95, 5, "Per Accettazione Cliente", ln=1, align='R')
     pdf.ln(10)
     pdf.line(10, pdf.get_y(), 70, pdf.get_y())
