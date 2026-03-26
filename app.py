@@ -75,7 +75,7 @@ def genera_pdf(d):
 
 # --- INTERFACCIA ---
 st.title("⚡ POLIS ENERGIA SUITE")
-st.caption(f"v74.4 | Codice: {st.session_state.codice_causale}")
+st.caption(f"v74.5 | Codice: {st.session_state.codice_causale}")
 
 if st.button("🔴 RESET / PULISCI TUTTI I CAMPI"):
     reset_campi()
@@ -85,7 +85,7 @@ st.divider()
 with st.form("main_form"):
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("📋 1. Dati Cliente")
+        st.subheader("📋 1. Anagrafica")
         nome = st.text_input("Ragione Sociale").upper()
         indirizzo = st.text_input("Indirizzo")
         uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"])
@@ -96,28 +96,37 @@ with st.form("main_form"):
         pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"])
         tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True)
         
-        # Inizializzazione
+        # Inizializzazione variabili
         p_att, p_new, c_dist = 0.0, 0.0, 0.0
         t_att, t_new = "BT", "BT"
 
-        # FLAG PASSAGGIO TENSIONE (IMMEDIATO)
+        # --- LOGICA TENSIONE SPECIFICA ---
         if tipo_ut == "Altri Usi":
-            flag_mt = st.checkbox("🔄 Passaggio da BT a MT?")
-            if flag_mt:
-                t_att, t_new = "BT", "MT"
+            # IL FLAG COMPARE SOLO PER AUMENTI O SUBENTRI
+            if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
+                flag_mt = st.checkbox("🔄 Passaggio da BT a MT?")
+                if flag_mt:
+                    t_att, t_new = "BT", "MT"
+                else:
+                    t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
             else:
-                t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
+                # Per Nuove Connessioni o Spostamenti si sceglie la tensione finale
+                t_att = t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True)
+        else:
+            t_att = t_new = "BT"
 
-        # SEZIONE POTENZA / DISTANZA
         st.markdown("---")
+        
+        # --- LOGICA CAMPI POTENZA/DISTANZA RIGIDA ---
         if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
             cp1, cp2 = st.columns(2)
-            p_att = cp1.number_input("Potenza ATTUALE (kW)", value=3.0, step=0.5)
-            p_new = cp2.number_input("Potenza RICHIESTA (kW)", value=6.0, step=0.5)
+            p_att = cp1.number_input("Potenza DI PARTENZA (kW)", value=3.0, step=0.5)
+            p_new = cp2.number_input("Nuova Potenza RICHIESTA (kW)", value=6.0, step=0.5)
+            # In questo blocco c_dist rimane 0.0
         
         elif pratica == "Nuova Connessione":
             p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
-            c_dist = st.number_input("Quota Distanza (€)", value=0.0)
+            c_dist = st.number_input("Quota Distanza Distributore (€)", value=0.0)
             
         elif pratica == "Spostamento":
             s_choice = st.radio("Distanza", ["Entro 10m", "Oltre 10m"], horizontal=True)
@@ -126,9 +135,9 @@ with st.form("main_form"):
 
         app_gest = st.checkbox("Gestione Polis (10%)", value=True)
     
-    submit = st.form_submit_button("📁 CALCOLA E GENERA")
+    submit = st.form_submit_button("📁 CALCOLA E GENERA ANTEPRIMA")
 
-# --- MOTORE DI CALCOLO E ANTEPRIMA ---
+# --- CALCOLO E ANTEPRIMA ---
 if submit:
     if nome and indirizzo:
         f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
@@ -161,15 +170,14 @@ if submit:
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
         
-        # --- ANTEPRIMA A VIDEO ---
-        st.subheader("🔍 Anteprima Calcolo")
-        res_data = {
-            "Descrizione": ["Quota Potenza", "Quota Distanza", "Oneri Istruttoria", "Gestione Polis", "Imponibile", "IVA", "Marca da Bollo", "TOTALE"],
-            "Valore (€)": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{TIC_2026['ISTRUTTORIA']:.2f}", f"{c_gest:.2f}", f"{imp:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{tot:.2f}**"]
+        st.subheader("🔍 Anteprima Riepilogo")
+        preview = {
+            "Voce": ["Potenza", "Distanza", "Istruttoria", "Gestione Polis", "Imponibile", "IVA", "Bollo", "TOTALE"],
+            "Importo (€)": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{TIC_2026['ISTRUTTORIA']:.2f}", f"{c_gest:.2f}", f"{imp:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{tot:.2f}**"]
         }
-        st.table(pd.DataFrame(res_data))
+        st.table(pd.DataFrame(preview))
         
         pdf_file = genera_pdf(dati)
         st.download_button("📥 SCARICA PREVENTIVO PDF", data=bytes(pdf_file), file_name=f"Prev_{clean_filename(nome)}.pdf", use_container_width=True)
     else:
-        st.error("⚠️ Errore: Inserire Ragione Sociale e Indirizzo!")
+        st.error("Inserire Ragione Sociale e Indirizzo.")
