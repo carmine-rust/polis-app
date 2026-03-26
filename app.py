@@ -154,7 +154,7 @@ def genera_pdf():
     
     # Firma Unica Cliente (Accettazione)
     pdf.ln(25); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(0, 5, "Per Accettazione Cliente (Firma Legale Rappresentante)", ln=1, align='R')
+    pdf.cell(0, 5, "Per Accettazione Cliente", ln=1, align='R')
     pdf.ln(5)
     pdf.line(130, pdf.get_y()+5, 200, pdf.get_y()+5) # Linea firma spostata a destra
     
