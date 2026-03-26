@@ -151,7 +151,7 @@ if submit:
         
         if pratica == "Spostamento":
             c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
-       else:
+        else:
             # 1. Potenza attuale con franchigia 1.1 (se BT <= 30)
             p_att_virtuale = p_att * f_att 
     
