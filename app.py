@@ -34,8 +34,8 @@ TIC_2026 = {
 # --- HEADER CON TASTO RESET ---
 col_t1, col_t2 = st.columns([4, 1])
 with col_t1:
-    st.title("⚡ POLIS ENERGIA")
-    st.caption("Configuratore Professionale v72.4 - Full Feature")
+    st.title("⚡ PolisEnergia srl")
+    st.caption("Preventivatore 4.0")
 with col_t2:
     if st.button("🔴 PULISCI CAMPI", use_container_width=True):
         reset_campi()
