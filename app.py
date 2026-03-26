@@ -93,8 +93,7 @@ def genera_pdf():
     pdf.cell(0, 10, "Ufficio Tecnico Connessioni")
 
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(80, 5, "POLIS ENERGIA SRL", ln=True, align='R')
-    pdf.set_font("Helvetica", "", 8); pdf.cell(80, 4, "www.polisenergia.it", ln=True, align='R')
+    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 4, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA) www.polisenergia.it", ln=True, align='R')
     
     # Destinatario
     pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0)
@@ -121,7 +120,7 @@ def genera_pdf():
     pdf.cell(50, 9, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
     
     if applica_gestione:
-        pdf.cell(140, 9, " Oneri di Gestione PolisEnergia (10%)", 1)
+        pdf.cell(140, 9, " Oneri di Gestione Pratica", 1)
         pdf.cell(50, 9, f"{c_gest:.2f} EUR", 1, 1, 'R')
     
     if bollo_2 > 0:
