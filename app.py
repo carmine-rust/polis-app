@@ -72,8 +72,8 @@ def genera_pdf(d):
     return pdf.output()
 
 # --- INTERFACCIA ---
-st.title("⚡ POLIS ENERGIA SUITE")
-st.caption(f"v74.5 | Codice: {st.session_state.codice_causale}")
+st.title("⚡ PolisEnergia")
+st.caption(f"Preventivatore 4.0 | Codice: {st.session_state.codice_causale}")
 
 if st.button("🔴 RESET / PULISCI TUTTI I CAMPI"):
     reset_campi()
