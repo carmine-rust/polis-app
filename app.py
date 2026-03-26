@@ -23,50 +23,39 @@ TIC_2026 = {
     "FISSO_BASE_CALCOLO": 25.88 
 }
 
-# --- STILE CSS STANDARD (Senza f-string per massima compatibilità) ---
+# --- STILE CSS ESSENZIALE ---
 st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
 
+# Usiamo una stringa tripla semplice senza formattazioni Python
 style_css = """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap');
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
     
-    html, body, [class*="css"] { font-family: 'Lato', sans-serif; }
+    html, body, [class*="css"] {
+        font-family: 'Lato', sans-serif !important;
+    }
     
-    /* Sfondo scuro per l'app */
-    .stApp { background-color: #001d3d; }
-    
-    /* Card del Totale */
+    .stApp {
+        background-color: #001d3d;
+    }
+
     .total-card {
-        background: linear-gradient(135deg, #003566 0%, #000814 100%);
-        padding: 25px;
-        border-radius: 15px;
+        background: #003566;
+        padding: 20px;
+        border-radius: 10px;
         border-left: 5px solid #00b4d8;
         color: white;
         text-align: center;
-        margin-bottom: 20px;
     }
-    
-    .total-amount { font-size: 45px; font-weight: 700; color: #00b4d8; }
-    
-    /* Bottoni */
-    .stButton>button {
-        background-color: #00b4d8;
-        color: white;
-        border-radius: 8px;
-        border: none;
-        padding: 10px 20px;
-        width: 100%;
+
+    .total-amount {
+        font-size: 40px;
         font-weight: bold;
+        color: #00b4d8;
     }
-    
-    /* Input e Selectbox */
-    div[data-baseweb="select"] > div, input {
-        background-color: #0a1a2f !important;
-        color: white !important;
-    }
-    </style>
+</style>
 """
-st.markdown(style_css, unsafe_content_allowed=True)
+st.write(style_css, unsafe_content_allowed=True)
 
 # --- LOGICA DI CALCOLO ---
 def esegui_calcoli(uso, pratica, t_att, t_new, p_att, p_new, dist_m, tipo_spost):
