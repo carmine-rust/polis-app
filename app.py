@@ -3,7 +3,7 @@ import math
 from fpdf import FPDF
 from datetime import datetime
 
-# 1. Configurazione Iniziale
+# 1. Configurazione
 st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
 
 # 2. Costanti TIC 2026
@@ -15,15 +15,9 @@ TIC_2026 = {
     "FISSO_BASE_CALCOLO": 25.88 
 }
 
-# --- INTERFACCIA UTENTE ---
+# --- INTERFACCIA ---
 st.title("⚡ POLIS ENERGIA")
 st.caption("Configuratore Tecnico Fornitura 2026")
-
-# Mostriamo il logo anche nell'app se presente (Opzionale)
-try:
-    st.sidebar.image("logo_polis.png", width=200)
-except:
-    st.sidebar.write("📌 **Polis Energia s.r.l.**")
 
 col1, col2 = st.columns(2)
 
@@ -53,7 +47,7 @@ if "Spostamento" in pratica:
 else:
     c_p1, c_p2, c_p3 = st.columns(3)
     if "Nuova" not in pratica:
-        p_att = c_p1.number_input("Potenza Attuale (kW)", min_value=0.0, value=3.0)
+        p_att = c_p1.number_input("Potenza Contrattuale Attuale (kW)", min_value=0.0, value=3.0)
     p_new = c_p2.number_input("Nuova Potenza Richiesta (kW)", min_value=0.1, value=6.0)
     if "Nuova" in pratica:
         dist_m = c_p3.number_input("Metri oltre i 200m", min_value=0)
@@ -76,78 +70,65 @@ aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or is_split) else 0.0)
 tot_iva = tot_imp * aliq
 tot_finale = tot_imp if is_split else tot_imp + tot_iva
 
-# --- RISULTATI ---
-st.metric("TOTALE DA PAGARE", f"{tot_finale:.2f} €")
+# --- AREA ANTEPRIMA (Riepilogo a video) ---
+st.subheader("📊 Riepilogo Preventivo")
+r1, r2, r3 = st.columns(3)
+r1.metric("Potenza Disponibile", f"{p_new * f_new:.2f} kW")
+r2.metric("Imponibile", f"{tot_imp:.2f} €")
+r3.metric("TOTALE FINALE", f"{tot_finale:.2f} €")
 
-# --- FUNZIONE PDF CON LOGO ESPLICITO ---
+with st.expander("🔍 Vedi dettaglio voci di costo"):
+    st.write(f"**Quota Potenza TIC:** {c_tec:.2f} €")
+    st.write(f"**Istruttoria:** {TIC_2026['ISTRUTTORIA']:.2f} €")
+    if c_gest > 0: st.write(f"**Gestione PolisEnergia (10%):** {c_gest:.2f} €")
+    if c_pass > 0: st.write(f"**Passaggio Tensione:** {c_pass:.2f} €")
+    st.write(f"**IVA ({int(aliq*100)}%):** {tot_iva:.2f} €")
+
+# --- FUNZIONE PDF ---
 def genera_pdf():
     pdf = FPDF()
     pdf.add_page()
-    
-    # 1. Fascia Blu Notte in alto
     pdf.set_fill_color(0, 29, 61) 
     pdf.rect(0, 0, 210, 45, 'F')
-    
-    # 2. INSERIMENTO LOGO (Riferimento esplicito)
     try:
-        # Carica il file logo_polis.png dalla cartella principale di GitHub
-        pdf.image("logo_polis.png", x=10, y=8, w=45) 
+        pdf.image("logo_polis.png", x=10, y=8, w=45)
     except:
-        # Se il file manca, scrive il nome dell'azienda in bianco
         pdf.set_xy(10, 15)
-        pdf.set_font("Helvetica", "B", 22)
+        pdf.set_font("Helvetica", "B", 20)
         pdf.set_text_color(255, 255, 255)
         pdf.cell(0, 10, "POLIS ENERGIA")
-
-    # Dati Aziendali a destra nell'header
-    pdf.set_xy(120, 12)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Helvetica", "B", 10)
+    
+    pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(80, 5, "POLIS ENERGIA SRL", ln=True, align='R')
-    pdf.set_font("Helvetica", "", 8)
-    pdf.cell(80, 5, "Servizio Clienti: www.polisenergia.it", ln=True, align='R')
+    pdf.set_font("Helvetica", "", 8); pdf.cell(80, 5, "www.polisenergia.it", ln=True, align='R')
     
-    # Corpo del PDF
-    pdf.ln(25)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Helvetica", "B", 14)
+    pdf.ln(25); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 10, f"PREVENTIVO PER: {nome}", ln=True)
-    
     pdf.set_font("Helvetica", "", 10)
-    pdf.cell(95, 7, f"POD: {pod}", 0)
-    pdf.cell(95, 7, f"Data: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, 'R')
-    
-    # Tabella Costi
+    pdf.cell(95, 7, f"POD: {pod}", 0); pdf.cell(95, 7, f"Data: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, 'R')
     pdf.ln(10)
-    pdf.set_fill_color(0, 180, 216)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(135, 10, " DESCRIZIONE", 1, 0, 'L', True)
-    pdf.cell(55, 10, " IMPORTO", 1, 1, 'C', True)
     
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Helvetica", "", 10)
+    pdf.set_fill_color(0, 180, 216); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(135, 10, " DESCRIZIONE", 1, 0, 'L', True); pdf.cell(55, 10, " IMPORTO", 1, 1, 'C', True)
     
-    pdf.cell(135, 10, f" Quota Potenza TIC ({p_new*f_new:.2f} kW disp.)", 1)
-    pdf.cell(55, 10, f" {c_tec:.2f} EUR", 1, 1, 'R')
-    pdf.cell(135, 10, " Istruttoria Amministrativa", 1)
-    pdf.cell(55, 10, f" {TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
-    
+    pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
+    pdf.cell(135, 10, f" Quota Potenza TIC ({p_new*f_new:.2f} kW)", 1); pdf.cell(55, 10, f" {c_tec:.2f} EUR", 1, 1, 'R')
+    pdf.cell(135, 10, " Istruttoria Amministrativa", 1); pdf.cell(55, 10, f" {TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
     if applica_gestione:
-        pdf.cell(135, 10, " Oneri Gestione PolisEnergia (10%)", 1)
-        pdf.cell(55, 10, f" {c_gest:.2f} EUR", 1, 1, 'R')
-
-    pdf.ln(5)
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(135, 10, "TOTALE FINALE DA PAGARE", 0, 0, 'R')
-    pdf.cell(55, 10, f"{tot_finale:.2f} EUR", 0, 1, 'R')
+        pdf.cell(135, 10, " Oneri Gestione PolisEnergia (10%)", 1); pdf.cell(55, 10, f" {c_gest:.2f} EUR", 1, 1, 'R')
     
-    return pdf.output(dest='S').encode('latin-1')
+    pdf.ln(10); pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(135, 10, "TOTALE DA PAGARE", 0, 0, 'R'); pdf.cell(55, 10, f"{tot_finale:.2f} EUR", 0, 1, 'R')
+    return pdf.output()
 
 # --- BOTTONE ---
+st.divider()
 if st.button("🚀 GENERA PREVENTIVO PDF"):
     if nome and pod:
-        pdf_data = genera_pdf()
-        st.download_button("📥 Scarica documento", pdf_data, f"Polis_{pod}.pdf", "application/pdf")
+        try:
+            pdf_data = genera_pdf()
+            st.download_button(label="📥 Scarica documento", data=bytes(pdf_data), file_name=f"Polis_{pod}.pdf", mime="application/pdf")
+        except Exception as e:
+            st.error(f"Errore: {e}")
     else:
         st.error("Inserisci Nome e POD!")
