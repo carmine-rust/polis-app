@@ -16,8 +16,8 @@ TIC_2026 = {
 }
 
 # --- INTERFACCIA ---
-st.title("⚡ POLIS ENERGIA")
-st.caption("Configuratore Tecnico Fornitura 2026 - Logica Fiscale v70.8")
+st.title("⚡ PolisEnergia")
+st.caption("Configuratore Tecnico Fornitura")
 
 col1, col2 = st.columns(2)
 
