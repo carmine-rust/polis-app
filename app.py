@@ -33,8 +33,8 @@ def genera_pdf(d):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
-    if os.path exists("logo.png"):
-        pdf.image("logo.png", 10, 10, 33)
+    if os.path exists("logo_polis.png"):
+        pdf.image("logo_polis.png", 10, 10, 33)
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(80, 5, "POLIS ENERGIA SRL", align='R', ln=1)
     pdf.set_font("Helvetica", "", 8); pdf.cell(80, 4, "www.polisenergia.it", align='R', ln=1)
