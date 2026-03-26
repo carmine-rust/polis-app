@@ -72,7 +72,7 @@ def genera_pdf(d):
     
     pdf.ln(10); pdf.set_font("Helvetica", "I", 8)
     pdf.multi_cell(190, 4, f"Causale: {st.session_state.codice_causale}\nIBAN:PolisEnergia srl - IT80P0103015200000007044056 - Monte dei Paschi di Siena")
-    pdf.ln (50)
+    pdf.ln (70)
     curr_y = pdf.get_y()
     pdf.set_xy(130, curr_y)
     pdf.set_font("Helvetica", "B", 9)
