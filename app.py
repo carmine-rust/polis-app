@@ -23,18 +23,18 @@ TIC_2026 = {
     "FISSO_BASE_CALCOLO": 25.88 
 }
 
-# --- STILE CSS PERSONALIZZATO ---
+# --- STILE CSS FIXATO ---
 st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
 
-st.markdown(f"""
+# Definiamo il CSS separatamente per evitare errori di sintassi nelle f-strings
+style_css = f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap');
     
     html, body, [class*="css"] {{ font-family: 'Lato', sans-serif; }}
     
-    .main {{ background-color: {BRAND['BLU_DEEP']}; }}
+    .stApp {{ background-color: {BRAND['BLU_DEEP']}; }}
     
-    /* Box del Totale */
     .total-card {{
         background: linear-gradient(135deg, {BRAND['BLU_POLIS']} 0%, #000814 100%);
         padding: 25px;
@@ -47,18 +47,17 @@ st.markdown(f"""
     
     .total-amount {{ font-size: 45px; font-weight: 700; color: {BRAND['AZZURRO']}; }}
     
-    /* Bottoni */
     .stButton>button {{
         background-color: {BRAND['AZZURRO']};
         color: white;
         border-radius: 8px;
         border: none;
         padding: 10px 20px;
-        transition: all 0.3s;
+        width: 100%;
     }}
-    .stButton>button:hover {{ background-color: {BRAND['ORO']}; color: {BRAND['BLU_DEEP']}; }}
     </style>
-    """, unsafe_content_allowed=True)
+"""
+st.markdown(style_css, unsafe_content_allowed=True)
 
 # --- LOGICA DI CALCOLO ---
 def esegui_calcoli(uso, pratica, t_att, t_new, p_att, p_new, dist_m, tipo_spost):
