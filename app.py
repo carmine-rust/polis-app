@@ -6,7 +6,7 @@ import re
 from fpdf import FPDF
 
 # 1. Configurazione Pagina
-st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Preventivatore PolisEnergia 4.0", page_icon="⚡", layout="wide")
 
 # --- FUNZIONI DI SERVIZIO ---
 def clean_filename(text):
@@ -35,8 +35,8 @@ TIC_2026 = {
 # --- HEADER ---
 col_t1, col_t2 = st.columns([4, 1])
 with col_t1:
-    st.title("⚡ POLIS ENERGIA")
-    st.caption(f"Configuratore v72.7 | Codice: **{st.session_state.codice_causale}**")
+    st.title("⚡ PolisEnergia srl")
+    st.caption(f"Preventivo | Codice: **{st.session_state.codice_causale}**")
 with col_t2:
     if st.button("🔴 PULISCI CAMPI", use_container_width=True):
         reset_campi()
