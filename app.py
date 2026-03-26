@@ -109,7 +109,7 @@ def genera_pdf():
     pdf.set_font("Helvetica", "", 8); pdf.cell(5, 5, "Ufficio Tecnico | www.polisenergia.it", ln=True, align='R')
     
     pdf.ln(25); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 10, f"PREVENTIVO PER: {nome}", ln=True)
+    pdf.cell(2, 10, f"PREVENTIVO PER: {nome}", ln=True)
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(95, 7, f"POD: {pod}", 0); pdf.cell(95, 7, f"Data: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, 'R')
     
