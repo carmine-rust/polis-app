@@ -152,17 +152,17 @@ if submit:
         if pratica == "Spostamento":
             c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
        else:
-    # 1. Potenza attuale con franchigia 1.1 (se BT <= 30)
-    p_att_virtuale = p_att * f_att 
+            # 1. Potenza attuale con franchigia 1.1 (se BT <= 30)
+            p_att_virtuale = p_att * f_att 
     
-    # 2. Potenza nuova ARROTONDATA PER ECCESSO all'intero (come da tua richiesta)
-    p_new_arrotondata = math.ceil(p_new) 
+            # 2. Potenza nuova ARROTONDATA PER ECCESSO all'intero (come da tua richiesta)
+            p_new_arrotondata = math.ceil(p_new) 
     
-    # 3. Differenza calcolata tra Intero e Virtuale Partenza
-    diff_kw = max(0.0, p_new_arrotondata - p_att_virtuale)
+            # 3. Differenza calcolata tra Intero e Virtuale Partenza
+            diff_kw = max(0.0, p_new_arrotondata - p_att_virtuale)
     
-    # 4. Calcolo economico
-    c_tec = diff_kw * px_new
+            # 4. Calcolo economico
+            c_tec = diff_kw * px_new
             
         c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
         imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
