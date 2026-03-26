@@ -1,63 +1,29 @@
 import streamlit as st
-import math, os
+import math, os, random, string
 from datetime import datetime
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
-# --- CONFIGURAZIONE ESTETICA ---
+# Configurazione base
+st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
+
+# Applichiamo il CSS in modo ultra-semplice
+st.markdown("""
+<style>
+    .stApp { background-color: #001d3d; color: white; }
+    .total-card { background: #003566; padding: 20px; border-radius: 10px; border-left: 5px solid #00b4d8; }
+</style>
+""", unsafe_content_allowed=True)
+
+# Definiamo i BRAND e TIC qui sotto...
 BRAND = {
     "BLU_DEEP": "#001d3d",
     "BLU_POLIS": "#003566",
     "AZZURRO": "#00b4d8",
-    "ORO": "#ffc300",
-    "BIANCO": "#ffffff",
     "IBAN": "IT80P0103015200000007044056",
     "BANCA": "Monte dei Paschi di Siena"
 }
-
-TIC_2026 = {
-    "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
-    "PASS_BT_MT": 494.83, "DIST_FISSA": 209.62, 
-    "DIST_EXTRA": 105.08, "SPOST_ENTRO_10": 226.36, 
-    "SPOST_OLTRE_10": 452.72, "ISTRUTTORIA": 27.42, 
-    "FISSO_BASE_CALCOLO": 25.88 
-}
-
-# --- STILE CSS ESSENZIALE ---
-st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
-
-# Usiamo una stringa tripla semplice senza formattazioni Python
-style_css = """
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Lato', sans-serif !important;
-    }
-    
-    .stApp {
-        background-color: #001d3d;
-    }
-
-    .total-card {
-        background: #003566;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #00b4d8;
-        color: white;
-        text-align: center;
-    }
-
-    .total-amount {
-        font-size: 40px;
-        font-weight: bold;
-        color: #00b4d8;
-    }
-</style>
-"""
-st.write(style_css, unsafe_content_allowed=True)
-
-# --- LOGICA DI CALCOLO ---
+# ... il resto del codice rimane uguale LOGICA DI CALCOLO ---
 def esegui_calcoli(uso, pratica, t_att, t_new, p_att, p_new, dist_m, tipo_spost):
     # Quota Tecnica
     if pratica == "Spostamento Misuratore":
