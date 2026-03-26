@@ -23,38 +23,47 @@ TIC_2026 = {
     "FISSO_BASE_CALCOLO": 25.88 
 }
 
-# --- STILE CSS FIXATO ---
+# --- STILE CSS STANDARD (Senza f-string per massima compatibilità) ---
 st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
 
-# Definiamo il CSS separatamente per evitare errori di sintassi nelle f-strings
-style_css = f"""
+style_css = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap');
     
-    html, body, [class*="css"] {{ font-family: 'Lato', sans-serif; }}
+    html, body, [class*="css"] { font-family: 'Lato', sans-serif; }
     
-    .stApp {{ background-color: {BRAND['BLU_DEEP']}; }}
+    /* Sfondo scuro per l'app */
+    .stApp { background-color: #001d3d; }
     
-    .total-card {{
-        background: linear-gradient(135deg, {BRAND['BLU_POLIS']} 0%, #000814 100%);
+    /* Card del Totale */
+    .total-card {
+        background: linear-gradient(135deg, #003566 0%, #000814 100%);
         padding: 25px;
         border-radius: 15px;
-        border-left: 5px solid {BRAND['AZZURRO']};
+        border-left: 5px solid #00b4d8;
         color: white;
         text-align: center;
         margin-bottom: 20px;
-    }}
+    }
     
-    .total-amount {{ font-size: 45px; font-weight: 700; color: {BRAND['AZZURRO']}; }}
+    .total-amount { font-size: 45px; font-weight: 700; color: #00b4d8; }
     
-    .stButton>button {{
-        background-color: {BRAND['AZZURRO']};
+    /* Bottoni */
+    .stButton>button {
+        background-color: #00b4d8;
         color: white;
         border-radius: 8px;
         border: none;
         padding: 10px 20px;
         width: 100%;
-    }}
+        font-weight: bold;
+    }
+    
+    /* Input e Selectbox */
+    div[data-baseweb="select"] > div, input {
+        background-color: #0a1a2f !important;
+        color: white !important;
+    }
     </style>
 """
 st.markdown(style_css, unsafe_content_allowed=True)
