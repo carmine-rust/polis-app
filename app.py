@@ -7,7 +7,7 @@ import pandas as pd
 from fpdf import FPDF
 
 # --- CONFIGURAZIONE ---
-st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
 
 if 'codice_causale' not in st.session_state:
     st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -54,17 +54,15 @@ def genera_pdf(d):
     
     if d['c_dist'] > 0:
         pdf.cell(140, 8, f" Quota Distanza / Oneri Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Oneri Istruttoria Pratica", 1); pdf.cell(50, 8, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Oneri Amministrativi", 1); pdf.cell(50, 8, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
     
-    pdf.set_font("Helvetica", "B", 9); pdf.cell(190, 8, " ONERI PROFESSIONALI POLIS ENERGIA", 1, 1, 'L', True)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(140, 8, " Gestione Tecnica e Amministrativa (10%)", 1); pdf.cell(50, 8, f"{d['c_gest']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['c_gest']:.2f} EUR", 1, 1, 'R')
     
     pdf.ln(2); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(140, 9, " IMPONIBILE", 1); pdf.cell(50, 9, f"{d['imponibile']:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 9, f" IVA ({d['iva_perc']}%)", 1); pdf.cell(50, 9, f"{d['iva_euro']:.2f} EUR", 1, 1, 'R')
     if d['bollo'] > 0:
-        pdf.cell(140, 9, " MARCA DA BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
+        pdf.cell(140, 9, "BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
     
     pdf.set_fill_color(240, 240, 240); pdf.set_font("Helvetica", "B", 11)
     pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['totale']:.2f} EUR", 1, 1, 'R', True)
