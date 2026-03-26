@@ -161,23 +161,6 @@ def genera_pdf():
     
     return pdf.output(dest='S').encode('latin-1')
 
-# --- BOTTONE DI DOWNLOAD ---
-if st.button("🚀 CREA PDF"):
-    if not nome or not pod:
-        st.error("⚠️ Inserisci Nome Cliente e POD per procedere.")
-    else:
-        try:
-            pdf_bytes = genera_pdf()
-            st.download_button(
-                label="📥 Scarica Preventivo Firmabile",
-                data=pdf_bytes,
-                file_name=f"Preventivo_Polis_{pod}.pdf",
-                mime="application/pdf"
-            )
-            st.success("PDF generato con successo!")
-        except Exception as e:
-            st.error(f"Errore durante la generazione: {e}")
-
 # --- DOWNLOAD ---
 if st.button("🚀 GENERA PDF PROFESSIONALE"):
     if not nome or not pod:
