@@ -152,13 +152,11 @@ def genera_pdf():
     )
     pdf.multi_cell(190, 5, testo_condizioni)
     
-    # Firme
-    pdf.ln(15); pdf.set_font("Helvetica", "B", 9)
-    
-    pdf.cell(105, 5, "Per Accettazione Cliente", ln=1, align='R')
-    pdf.ln(10)
-    pdf.line(10, pdf.get_y(), 70, pdf.get_y())
-    pdf.line(140, pdf.get_y(), 200, pdf.get_y())
+    # Firma Unica Cliente (Accettazione)
+    pdf.ln(25); pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 5, "Per Accettazione Cliente (Firma Legale Rappresentante)", ln=1, align='R')
+    pdf.ln(5)
+    pdf.line(130, pdf.get_y()+5, 200, pdf.get_y()+5) # Linea firma spostata a destra
     
     return pdf.output()
 
