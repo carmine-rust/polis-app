@@ -52,7 +52,7 @@ def genera_pdf(d):
     pdf.cell(140, 8, desc_pot, 1); pdf.cell(50, 8, f"{d['c_tec']:.2f} EUR", 1, 1, 'R')
     
     if d['c_dist'] > 0:
-        pdf.cell(140, 8, " Quota Distanza (Rilievi Distributore)", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
+        pdf.cell(140, 8, f" Quota Distanza / Oneri Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 8, " Oneri Istruttoria Pratica", 1); pdf.cell(50, 8, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
     
     pdf.set_font("Helvetica", "B", 9); pdf.cell(190, 8, " ONERI PROFESSIONALI POLIS ENERGIA", 1, 1, 'L', True)
@@ -74,9 +74,9 @@ def genera_pdf(d):
 
 # --- INTERFACCIA ---
 st.title("⚡ POLIS ENERGIA SUITE")
-st.caption(f"v74.2 (STABLE INTERFACE) | Codice: {st.session_state.codice_causale}")
+st.caption(f"v74.3 | Codice: {st.session_state.codice_causale}")
 
-if st.button("🔴 RESET / PULISCI CAMPI"):
+if st.button("🔴 RESET / PULISCI TUTTI I CAMPI"):
     reset_campi()
 
 st.divider()
@@ -84,69 +84,76 @@ st.divider()
 with st.form("main_form"):
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Anagrafica")
-        nome = st.text_input("Ragione Sociale", key="n_f").upper()
-        indirizzo = st.text_input("Indirizzo", key="i_f")
-        uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"], key="v_f")
-        pod = st.text_input("POD", key="p_f").upper()
+        st.subheader("1. Dati Cliente")
+        nome = st.text_input("Ragione Sociale").upper()
+        indirizzo = st.text_input("Indirizzo")
+        uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"])
+        pod = st.text_input("POD").upper()
 
     with c2:
-        st.subheader("Dettagli Tecnici")
-        pratica = st.selectbox("Tipo di Pratica", ["Nuova Connessione", "Aumento Potenza", "Subentro con Modifica", "Spostamento"], key="pr_f")
-        tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True, key="ut_f")
+        st.subheader("2. Dati Tecnici")
+        pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"])
+        tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True)
         
-        # --- LOGICA TENSIONE E FLAG ---
-        t_att, t_new = "BT", "BT"
-        if tipo_ut == "Altri Usi":
-            passaggio_tens = st.checkbox("Passaggio da BT a MT?")
-            if passaggio_tens:
-                t_att = "BT"
-                t_new = "MT"
-            else:
-                t_att = t_new = st.radio("Tensione Attuale", ["BT", "MT"], horizontal=True)
-        
-        # --- LOGICA POTENZA (VISIBILITÀ RIGIDA) ---
+        # Inizializzazione variabili per evitare errori
         p_att, p_new, c_dist = 0.0, 0.0, 0.0
-        
-        if pratica == "Spostamento":
-            s_dist_choice = st.radio("Distanza", ["Entro 10m", "Oltre 10m"], horizontal=True)
-            if s_dist_choice == "Oltre 10m":
-                c_dist = st.number_input("Quota Distanza (€)", value=0.0)
-        
-        elif pratica == "Nuova Connessione":
-            p_new = st.number_input("Potenza Richiesta (kW)", value=3.0)
-            c_dist = st.number_input("Quota Distanza Distributore (€)", value=0.0)
+        t_att, t_new = "BT", "BT"
+
+        # --- BLOCCO AUMENTO / SUBENTRO ---
+        if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
+            col_p1, col_p2 = st.columns(2)
+            p_att = col_p1.number_input("Potenza ATTUALE (kW)", value=3.0, step=0.5)
+            p_new = col_p2.number_input("Potenza RICHIESTA (kW)", value=6.0, step=0.5)
             
-        else: # Aumento o Subentro
-            col_a, col_b = st.columns(2)
-            p_att = col_a.number_input("Potenza DI PARTENZA (kW)", value=3.0)
-            p_new = col_b.number_input("Potenza RICHIESTA (kW)", value=6.0)
-            # In Aumento Potenza NON c'è Quota Distanza
+            if tipo_ut == "Altri Usi":
+                flag_mt = st.checkbox("Passaggio da BT a MT?")
+                if flag_mt:
+                    t_att, t_new = "BT", "MT"
+                else:
+                    t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
+            # QUI NON C'È QUOTA DISTANZA
+
+        # --- BLOCCO NUOVA CONNESSIONE ---
+        elif pratica == "Nuova Connessione":
+            p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
+            c_dist = st.number_input("Quota Distanza Distributore (€)", value=0.0)
+            if tipo_ut == "Altri Usi":
+                t_new = t_att = st.radio("Tensione", ["BT", "MT"], horizontal=True)
+
+        # --- BLOCCO SPOSTAMENTO ---
+        elif pratica == "Spostamento":
+            s_choice = st.radio("Distanza Spostamento", ["Entro 10m", "Oltre 10m"], horizontal=True)
+            if s_choice == "Oltre 10m":
+                c_dist = st.number_input("Quota Distanza (€)", value=0.0)
+            # Potenza non rilevante o fissa
 
         app_gest = st.checkbox("Gestione Polis (10%)", value=True)
     
-    submit = st.form_submit_button("📁 GENERA PDF")
+    submit = st.form_submit_button("📁 GENERA PREVENTIVO")
 
 # --- CALCOLO ---
 if submit:
     if nome and indirizzo:
-        # Coefficienti 1.1
+        # Coefficienti Franchigia
         f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
         f_new = 1.1 if (t_new == "BT" and p_new <= 30) else 1.0
         
-        def get_tick(tens, pot, ut):
+        # Tariffe
+        def get_tariffa(tens, pot, ut):
             if tens == "MT": return TIC_2026["MT"]
             if ut == "Domestico" and pot <= 6: return TIC_2026["DOM_LE6"]
             return TIC_2026["BT_ALTRI"]
 
-        px_att = get_tick(t_att, p_att, tipo_ut)
-        px_new = get_tick(t_new, p_new, tipo_ut)
+        px_att = get_tariffa(t_att, p_att, tipo_ut)
+        px_new = get_tariffa(t_new, p_new, tipo_ut)
         
+        # Quota Tecnica
         if pratica == "Spostamento":
-            c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_dist_choice else TIC_2026["SPOST_OLTRE_10"]
+            c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
         else:
             c_tec = max(0.0, (p_new * f_new * px_new) - (p_att * f_att * px_att))
             
+        # Oneri e Tasse
         c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
         imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
         iva_p = 10 if "10" in uso else (22 if ("22" in uso or "P.A." in uso) else 0)
@@ -161,8 +168,8 @@ if submit:
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
         
-        st.success("Analisi completata!")
+        st.success("Preventivo elaborato con successo.")
         pdf_file = genera_pdf(dati)
         st.download_button("📥 SCARICA PDF", data=bytes(pdf_file), file_name=f"Prev_{clean_filename(nome)}.pdf", use_container_width=True)
     else:
-        st.error("Mancano i dati del cliente!")
+        st.error("Inserire Ragione Sociale e Indirizzo!")
