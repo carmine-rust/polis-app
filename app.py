@@ -6,7 +6,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # 1. Configurazione Pagina
-st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Preventivatore PolisEnergia 4.0", page_icon="⚡", layout="wide")
 
 # 2. Costanti TIC 2026
 TIC_2026 = {
@@ -20,7 +20,7 @@ if 'codice_causale' not in st.session_state:
     st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 # --- INTERFACCIA UTENTE ---
-st.title("⚡ POLIS ENERGIA")
+st.title("⚡ PolisEnergia srl")
 st.caption("Configuratore Professionale v72.3 - Fix Totale NameError")
 
 col1, col2 = st.columns(2)
