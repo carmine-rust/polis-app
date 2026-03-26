@@ -12,7 +12,7 @@ st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wid
 TIC_2026 = {
     "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
     "DIST_FISSA": 209.62, "DIST_EXTRA": 105.08, 
-    "SPOST_ENTRO_10": 226.36, "SPOST_OLTRE_10": 452.72, 
+    "SPOST_ENTRO_10": 226.36, "SPOST_OLTRE_10": 226.36, 
     "ISTRUTTORIA": 27.42, "FISSO_BASE_CALCOLO": 25.88
 }
 
@@ -20,8 +20,8 @@ if 'codice_causale' not in st.session_state:
     st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 # --- INTERFACCIA ---
-st.title("⚡ PolisEnergia srl")
-st.caption("Preventivatore")
+st.title("⚡ POLIS ENERGIA")
+st.caption("Configuratore Professionale v71.9 - Spostamenti Certificati")
 
 col1, col2 = st.columns(2)
 
@@ -40,18 +40,28 @@ with col2:
     is_spostamento = "Spostamento" in pratica
     is_nuova = "Nuova" in pratica
     c_dist_totale = 0.0
+    c_tec = 0.0
+    desc_riga_1 = ""
 
     if is_spostamento:
-        dist_spostamento = st.radio("Distanza Spostamento (da Sopralluogo)", ["Entro 10 metri", "Oltre 10 metri"], horizontal=True)
-        c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in dist_spostamento else TIC_2026["SPOST_OLTRE_10"]
-        desc_riga_1 = f"Corrispettivo Fisso Spostamento ({dist_spostamento})"
+        dist_choice = st.radio("Tipologia Spostamento", ["Entro 10 metri", "Oltre 10 metri"], horizontal=True)
+        if dist_choice == "Entro 10 metri":
+            c_tec = TIC_2026["SPOST_ENTRO_10"]
+            desc_riga_1 = "Corrispettivo Fisso Spostamento (Entro 10m)"
+        else:
+            # BLOCCO CAUTELA SPOSTAMENTO > 10M
+            st.warning("⚠️ ATTENZIONE: Per spostamenti oltre 10m, i metri di distanza devono essere desunti esclusivamente dal preventivo del distributore.")
+            metri_extra_spost = st.number_input("Quota Distanza (Metri eccedenti i 200m da preventivo distributore)", min_value=0, step=1)
+            c_tec = TIC_2026["SPOST_OLTRE_10"]
+            c_dist_totale = TIC_2026["DIST_FISSA"] + (math.ceil(metri_extra_spost/100) * TIC_2026["DIST_EXTRA"])
+            desc_riga_1 = "Corrispettivo Base Spostamento (> 10m)"
     else:
         c_p1, c_p2 = st.columns(2)
         p_att = c_p1.number_input("Potenza Attuale (kW)", min_value=0.0, value=3.0) if not is_nuova else 0.0
         p_new = c_p2.number_input("Nuova Potenza (kW)", min_value=0.1, value=6.0)
         
         if is_nuova:
-            st.info("⚠️ Inserire la distanza solo dopo ricezione del preventivo/sopralluogo del distributore.")
+            st.info("⚠️ Inserire la distanza solo dopo sopralluogo del distributore.")
             metri_extra = st.number_input("Quota Distanza (Metri eccedenti i primi 200m)", min_value=0, step=1)
             c_dist_totale = TIC_2026["DIST_FISSA"] + (math.ceil(metri_extra/100) * TIC_2026["DIST_EXTRA"])
 
@@ -64,14 +74,13 @@ with col2:
 
     applica_gestione = st.checkbox("Applica Oneri Gestione Polis (10%)", value=True)
 
-# --- CALCOLI ---
+# --- CALCOLI FINALI ---
 c_gest = (c_tec + c_dist_totale + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if applica_gestione else 0.0
 tot_sogg_iva = c_tec + c_dist_totale + c_gest + TIC_2026["ISTRUTTORIA"]
 bollo_2 = 2.0 if (uso == "Esente" and tot_sogg_iva > 77.47) else 0.0
-is_split = "P.A." in uso
-aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or is_split) else 0.0)
+aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or "P.A." in uso) else 0.0)
 tot_iva = tot_sogg_iva * aliq
-tot_finale = (tot_sogg_iva if is_split else tot_sogg_iva + tot_iva) + bollo_2
+tot_finale = (tot_sogg_iva if "P.A." in uso else tot_sogg_iva + tot_iva) + bollo_2
 
 # --- PDF ---
 def genera_pdf():
