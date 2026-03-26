@@ -82,20 +82,24 @@ aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or "P.A." in uso) else 0
 tot_iva = tot_sogg_iva * aliq
 tot_finale = (tot_sogg_iva if "P.A." in uso else tot_sogg_iva + tot_iva) + bollo_2
 
-# --- ANTEPRIMA DETTAGLIATA ---
+# --- ANTEPRIMA ANALITICA ---
 st.divider()
-st.subheader("🔍 Dettaglio Analitico del Calcolo")
-with st.expander("Clicca per vedere i passaggi matematici", expanded=True):
-    st.write(f"**1. Parte Tecnica:** {dettaglio_potenza}")
-    if (is_nuova or (is_spostamento and dist_choice == "Oltre 10 metri")):
-        st.write(f"**2. Parte Distanza:** {dettaglio_distanza}")
-    st.write(f"**3. Istruttoria:** Quota fissa ARERA = {TIC_2026['ISTRUTTORIA']:.2f} €")
-    if applica_gestione:
-        st.write(f"**4. Gestione Polis:** (Quota Tecnica + Distanza + {TIC_2026['FISSO_BASE_CALCOLO']:.2f} € base) x 10% = {c_gest:.2f} €")
-    st.write(f"---")
-    st.write(f"**Imponibile Totale:** {tot_sogg_iva:.2f} €")
-    st.write(f"**IVA ({int(aliq*100)}%):** {tot_iva:.2f} €")
-    st.success(f"### TOTALE PREVENTIVATO: {tot_finale:.2f} €")
+st.subheader("🔍 Dettaglio Analitico dei Costi")
+with st.container():
+    c_ant1, c_ant2 = st.columns([2, 1])
+    with c_ant1:
+        st.markdown(f"**1. Componente Tecnica:** {dettaglio_potenza}")
+        if dettaglio_distanza:
+            st.markdown(f"**2. Componente Distanza:** {dettaglio_distanza}")
+        st.markdown(f"**3. Istruttoria Pratica:** Quota fissa ARERA = **{TIC_2026['ISTRUTTORIA']:.2f} €**")
+        if applica_gestione:
+            st.markdown(f"**4. Gestione PolisEnergia:** (Tecnica + Distanza + {TIC_2026['FISSO_BASE_CALCOLO']:.2f} € base) x 10% = **{c_gest:.2f} €**")
+    
+    with c_ant2:
+        st.write("### Riepilogo")
+        st.write(f"Imponibile: {tot_sogg_iva:.2f} €")
+        st.write(f"IVA: {tot_iva:.2f} €")
+        st.success(f"**TOTALE: {tot_finale:.2f} €**")
 
 # --- PDF ---
 def genera_pdf():
