@@ -22,7 +22,7 @@ if 'codice_causale' not in st.session_state:
 
 # --- INTERFACCIA UTENTE ---
 st.title("⚡ POLIS ENERGIA")
-st.caption("Configuratore Professionale v71.1")
+st.caption("Configuratore Professionale v71.2 - Tabella Dettagliata")
 
 col1, col2 = st.columns(2)
 
@@ -63,7 +63,7 @@ aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or is_split) else 0.0)
 tot_iva = tot_sogg_iva * aliq
 tot_finale = (tot_sogg_iva if is_split else tot_sogg_iva + tot_iva) + bollo_2
 
-# --- ANTEPRIMA A VIDEO (RIPRISTINATA) ---
+# --- ANTEPRIMA A VIDEO ---
 st.divider()
 st.subheader("📊 Anteprima Calcoli")
 v1, v2, v3, v4 = st.columns(4)
@@ -89,8 +89,8 @@ def genera_pdf():
 
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(80, 5, "POLIS ENERGIA SRL", ln=True, align='R')
-    pdf.set_font("Helvetica", "", 7)
-    pdf.cell(0, 4, "Sede Operativa: Via Terre delle Risaie 4 - 84131 Salerno (SA)", ln=True, align='R')
+    pdf.set_font("Helvetica", "", 8)
+    pdf.cell(80, 4, "Sede Operativa: Ufficio Tecnico", ln=True, align='R')
     pdf.cell(80, 4, "www.polisenergia.it", ln=True, align='R')
     
     # Destinatario
@@ -103,12 +103,15 @@ def genera_pdf():
     # Oggetto
     pdf.ln(10); pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, f"PREVENTIVO PER {pratica.upper()} - POD: {pod if pod else 'N.D.'}", border="B", ln=True)
-   
+    
     # --- TABELLA DETTAGLIATA ---
     pdf.ln(5); pdf.set_fill_color(0, 180, 216); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(140, 10, " DESCRIZIONE DETTAGLIATA", 1, 0, 'L', True)
     pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
-   # Riga 1: Quota Tecnica (TIC)
+    
+    pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
+    
+    # Riga 1: Quota Tecnica (TIC)
     pdf.cell(140, 9, f" Quota Potenza TIC ({p_new*f_new:.2f} kW Pd)", 1)
     pdf.cell(50, 9, f"{c_tec:.2f} EUR", 1, 1, 'R')
     
@@ -136,7 +139,7 @@ def genera_pdf():
     pdf.cell(140, 11, " TOTALE DOVUTO", 1, 0, 'L', True)
     pdf.cell(50, 11, f"{tot_finale:.2f} EUR", 1, 1, 'R', True)
     
-    # Didascalia (Fix dello spazio orizzontale)
+    # Didascalia
     pdf.ln(10); pdf.set_font("Helvetica", "B", 9)
     pdf.cell(0, 5, "CONDIZIONI DI ESECUZIONE:", ln=True)
     pdf.set_font("Helvetica", "", 9)
@@ -147,10 +150,11 @@ def genera_pdf():
         f"- Pagamento tramite bonifico: PolisEnergia s.r.l. - IT80P0103015200000007044056 - MPS\n"
         f"  Causale obbligatoria: {st.session_state.codice_causale}"
     )
-    pdf.multi_cell(190, 5, testo_condizioni) # Specifichiamo larghezza 190 per evitare errori
+    pdf.multi_cell(190, 5, testo_condizioni)
     
     # Firme
     pdf.ln(15); pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(95, 5, "Per PolisEnergia s.r.l.", ln=0)
     pdf.cell(95, 5, "Per Accettazione Cliente", ln=1, align='R')
     pdf.ln(10)
     pdf.line(10, pdf.get_y(), 70, pdf.get_y())
