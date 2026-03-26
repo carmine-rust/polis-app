@@ -8,6 +8,21 @@ from datetime import datetime
 # 1. Configurazione Pagina
 st.set_page_config(page_title="Preventivatore PolisEnergia 4.0", page_icon="⚡", layout="wide")
 
+# --- FUNZIONE RESET ---
+def reset_campi():
+    st.session_state.nome = ""
+    st.session_state.indirizzo = ""
+    st.session_state.pod = ""
+    st.session_state.p_att = 3.0
+    st.session_state.p_new = 6.0
+    st.session_state.m_nuova = 0
+    st.session_state.m_spost = 0
+    st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+# Inizializzazione Session State
+if 'codice_causale' not in st.session_state:
+    reset_campi()
+    
 # 2. Costanti TIC 2026
 TIC_2026 = {
     "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
@@ -16,19 +31,25 @@ TIC_2026 = {
     "ISTRUTTORIA": 27.42, "FISSO_BASE_CALCOLO": 25.88
 }
 
-if 'codice_causale' not in st.session_state:
-    st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+# --- HEADER CON TASTO RESET ---
+col_t1, col_t2 = st.columns([4, 1])
+with col_t1:
+    st.title("⚡ POLIS ENERGIA")
+    st.caption("Configuratore Professionale v72.4 - Full Feature")
+with col_t2:
+    if st.button("🔴 PULISCI CAMPI", use_container_width=True):
+        reset_campi()
+        st.rerun()
+
+st.divider()
 
 # --- INTERFACCIA UTENTE ---
-st.title("⚡ PolisEnergia srl")
-st.caption("Configuratore Professionale v72.3 - Fix Totale NameError")
-
 col1, col2 = st.columns(2)
 
-# Inizializzazione variabili globali per evitare NameError
-dettaglio_potenza = "Dato non inserito"
+# Inizializzazione variabili per anteprima (Safe Default)
+dettaglio_potenza = "In attesa di dati..."
 dettaglio_distanza = ""
-desc_riga_1 = "Prestazione Tecnica"
+desc_riga_1 = "Prestazione"
 c_tec = 0.0
 c_dist_totale = 0.0
 
