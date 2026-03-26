@@ -33,10 +33,11 @@ TIC_2026 = {
 def genera_pdf(d):
     pdf = FPDF()
     pdf.add_page()
+    pdf.add_font('Lato', '', 'Lato-Regular.ttf', uni=True)
     pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
     if os.path.exists("logo_polis.png"):
         pdf.image("logo_polis.png", 10, 10, 33)
-    pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 8)
+    pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Lato-Regular", "B", 8)
     pdf.cell(0, 5, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA)", align='R', ln=1)
     pdf.set_font("Helvetica", "", 8); pdf.cell(80, 4, "www.polisenergia.it", align='R', ln=1)
     pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 10)
