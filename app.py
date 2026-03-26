@@ -2,32 +2,34 @@ import streamlit as st
 import math
 from fpdf import FPDF
 
-# 1. Configurazione Iniziale
+# 1. CONFIGURAZIONE NATIVA (L'unica istruzione prima di tutto)
 st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
 
-# 2. Iniezione Stile (Metodo Ultra-Safe per evitare TypeError)
-st.markdown('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap">', unsafe_content_allowed=True)
-
-style = """
+# 2. STILE INIETTATO (Semplificato al massimo per evitare il TypeError)
+st.markdown("""
 <style>
+    /* Usiamo font di sistema sicuri che assomigliano a Lato */
     html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, label {
-        font-family: 'Lato', 'Segoe UI', sans-serif !important;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
     }
     .stApp { background-color: #001d3d; color: white; }
     h1, h2, h3 { color: #00b4d8 !important; }
+    
+    /* Input Style */
     div[data-baseweb="select"] > div, input { 
         background-color: #0a1a2f !important; 
         color: white !important; 
         border: 1px solid #00b4d8 !important;
     }
+    
+    /* Bottoni */
     .stButton>button {
-        background-color: #00b4d8; color: #001d3d; font-weight: 700; border: none;
+        background-color: #00b4d8; color: #001d3d; font-weight: bold; border: none;
     }
 </style>
-"""
-st.markdown(style, unsafe_content_allowed=True)
+""", unsafe_content_allowed=True)
 
-# 3. Costanti TIC 2026
+# 3. COSTANTI TECNICHE TIC 2026
 TIC_2026 = {
     "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
     "PASS_BT_MT": 494.83, "DIST_FISSA": 209.62, 
@@ -38,12 +40,12 @@ TIC_2026 = {
 
 # --- INTERFACCIA ---
 st.title("⚡ POLIS ENERGIA")
-st.caption("Configuratore Tecnico v2026.1 | Font: Lato")
+st.write("Configuratore Tecnico Fornitura 2026")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Dati Cliente")
+    st.subheader("Parametri Cliente")
     tipo_utenza = st.radio("Tipologia Utenza", ["Domestico", "Altri Usi"], horizontal=True)
     uso = st.selectbox("Regime Fiscale", ["IVA 10% (Domestico)", "IVA 22% (Business)", "P.A. (Split Payment)", "Esente"])
     nome = st.text_input("Intestatario").upper()
@@ -53,28 +55,31 @@ with col2:
     st.subheader("Parametri Tecnici")
     pratica = st.selectbox("Tipo Pratica", ["Nuova Connessione", "Aumento di Potenza", "Subentro con Modifica", "Spostamento Misuratore"])
     t_att = st.selectbox("Tensione Attuale", ["BT", "MT"])
+    # Vincolo Domestico/MT
     op_t_new = ["BT"] if tipo_utenza == "Domestico" else ["BT", "MT"]
     t_new = st.selectbox("Tensione Richiesta", op_t_new)
     applica_gestione = st.checkbox("Applica Oneri Gestione (10%)", value=True)
 
-# --- CALCOLI (Logica Pd/Pc) ---
+# --- CALCOLI (Logica Pd vs Pc) ---
 st.divider()
 p_att, p_new, dist_m, c_tec = 0.0, 0.0, 0, 0.0
 
 if pratica == "Spostamento Misuratore":
-    tipo_sp = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"])
-    c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in tipo_sp else TIC_2026["SPOST_OLTRE_10"]
+    tipo_spost = st.radio("Distanza dello spostamento", ["Entro 10 metri", "Oltre 10 metri"])
+    c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in tipo_spost else TIC_2026["SPOST_OLTRE_10"]
     f_new = 1.0
 else:
-    c_p1, c_p2, c_p3 = st.columns(3)
+    cp1, cp2, cp3 = st.columns(3)
     if "Nuova" not in pratica:
-        p_att = c_p1.number_input("Potenza Attuale (kW)", min_value=0.0, value=3.0)
-    p_new = c_p2.number_input("Nuova Potenza (kW)", min_value=0.1, value=6.0)
+        p_att = cp1.number_input("Potenza Attuale (kW)", min_value=0.0, value=3.0)
+    p_new = cp2.number_input("Nuova Potenza (kW)", min_value=0.1, value=6.0)
     if pratica == "Nuova Connessione":
-        dist_m = c_p3.number_input("Metri oltre i 200m", min_value=0)
+        dist_m = cp3.number_input("Metri oltre i 200m", min_value=0)
 
+    # Logica Limitatore 1.1 in BT fino a 30kW
     f_new = 1.1 if (t_new == "BT" and p_new <= 30) else 1.0
     f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
+    
     px = TIC_2026["MT"] if t_new == "MT" else (TIC_2026["DOM_LE6"] if (tipo_utenza == "Domestico" and p_new <= 6) else TIC_2026["BT_ALTRI"])
     
     if pratica == "Nuova Connessione":
@@ -90,27 +95,30 @@ is_split = "P.A." in uso
 aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or is_split) else 0.0)
 tot_finale = tot_imp if is_split else tot_imp * (1 + aliq)
 
-# --- RISULTATI ---
+# --- AREA RISULTATI ---
 res1, res2 = st.columns([2, 1])
 
 with res1:
-    st.markdown("### Riepilogo")
-    st.write(f"Potenza Disponibile: **{(p_new * f_new):.2f} kW**")
-    st.write(f"Quota TIC: {c_tec:.2f} € | Gestione: {c_gest:.2f} €")
+    st.markdown("### Dettaglio Costi")
+    st.write(f"Potenza Disponibile Calcolata: **{(p_new * f_new):.2f} kW**")
+    st.write(f"Quota Tecnica TIC: {c_tec:.2f} €")
+    st.write(f"Oneri Gestione PolisEnergia: {c_gest:.2f} €")
+    st.write(f"Istruttoria: {TIC_2026['ISTRUTTORIA']:.2f} €")
 
 with res2:
-    st.metric("TOTALE FINALE", f"{tot_finale:.2f} €")
-    if st.button("GENERA PDF"):
+    st.metric("TOTALE DA PAGARE", f"{tot_finale:.2f} €")
+    if st.button("SCARICA PREVENTIVO PDF"):
         if nome and pod:
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 16)
-            pdf.cell(0, 10, "POLIS ENERGIA - PREVENTIVO", ln=True, align='C')
+            pdf.cell(0, 10, "POLIS ENERGIA - PREVENTIVO UFFICIALE", ln=True, align='C')
             pdf.set_font("Helvetica", "", 12)
             pdf.ln(10)
             pdf.cell(0, 10, f"Cliente: {nome} | POD: {pod}", ln=True)
+            pdf.cell(0, 10, f"Potenza: {p_new} kW (Disp: {p_new*f_new:.2f} kW)", ln=True)
             pdf.cell(0, 10, f"Totale: {tot_finale:.2f} EUR", ln=True)
             p_name = f"Prev_{pod}.pdf"
             pdf.output(p_name)
             with open(p_name, "rb") as f:
-                st.download_button("Scarica", f, file_name=p_name)
+                st.download_button("Download", f, file_name=p_name)
