@@ -5,6 +5,7 @@ import string
 import re
 import pandas as pd
 from fpdf import FPDF
+import os
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
