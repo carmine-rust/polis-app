@@ -16,8 +16,8 @@ TIC_2026 = {
 
 # --- INTERFACCIA ---
 st.title("⚡ POLIS ENERGIA")
-st.subheader("Configuratore Tecnico Fornitura 2026")
-st.info("Logica Limitatore ARERA (Pd 1.1) Attiva")
+st.subheader("Preventivatore Pratiche")
+st.info("Versione WEB")
 
 col1, col2 = st.columns(2)
 
@@ -113,7 +113,7 @@ with res_col2:
             pdf.cell(0, 10, f"TOTALE DOVUTO: {tot_finale:.2f} EUR", ln=True)
             pdf.ln(10)
             pdf.set_font("Helvetica", "I", 8)
-            pdf.multi_cell(0, 5, "Nota: Il presente preventivo ha validita 30 giorni. La potenza calcolata include la franchigia del 10% (limitatore) come da normativa ARERA TIC 2026.")
+            pdf.multi_cell(0, 5, "Nota: Il presente preventivo ha validita 30 giorni.")
             
             p_name = f"Preventivo_{pod}.pdf"
             pdf.output(p_name)
