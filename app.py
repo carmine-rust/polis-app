@@ -2,40 +2,41 @@ import streamlit as st
 import math
 import random
 import string
+import re
 from fpdf import FPDF
-from datetime import datetime
 
 # 1. Configurazione Pagina
-st.set_page_config(page_title="Preventivatore PolisEnergia 4.0", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="PolisEnergia Suite", page_icon="⚡", layout="wide")
 
-# --- FUNZIONE RESET ---
+# --- FUNZIONI DI SERVIZIO ---
+def clean_filename(text):
+    text = re.sub(r'[^\w\s-]', '', text).strip()
+    return re.sub(r'[-\s]+', '_', text).upper()
+
 def reset_campi():
     st.session_state.nome = ""
     st.session_state.indirizzo = ""
     st.session_state.pod = ""
     st.session_state.p_att = 3.0
     st.session_state.p_new = 6.0
-    st.session_state.m_nuova = 0
-    st.session_state.m_spost = 0
+    st.session_state.dist_manuale = 0.0
     st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-# Inizializzazione Session State
 if 'codice_causale' not in st.session_state:
     reset_campi()
-    
+
 # 2. Costanti TIC 2026
 TIC_2026 = {
     "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
-    "DIST_FISSA": 209.62, "DIST_EXTRA": 105.08, 
     "SPOST_ENTRO_10": 226.36, "SPOST_OLTRE_10": 226.36, 
     "ISTRUTTORIA": 27.42, "FISSO_BASE_CALCOLO": 25.88
 }
 
-# --- HEADER CON TASTO RESET ---
+# --- HEADER ---
 col_t1, col_t2 = st.columns([4, 1])
 with col_t1:
-    st.title("⚡ PolisEnergia srl")
-    st.caption("Preventivatore 4.0")
+    st.title("⚡ POLIS ENERGIA")
+    st.caption(f"Configuratore v72.7 | Codice: **{st.session_state.codice_causale}**")
 with col_t2:
     if st.button("🔴 PULISCI CAMPI", use_container_width=True):
         reset_campi()
@@ -43,22 +44,14 @@ with col_t2:
 
 st.divider()
 
-# --- INTERFACCIA UTENTE ---
+# --- INPUT ---
 col1, col2 = st.columns(2)
-
-# Inizializzazione variabili per anteprima (Safe Default)
-dettaglio_potenza = "In attesa di dati..."
-dettaglio_distanza = ""
-desc_riga_1 = "Prestazione"
-c_tec = 0.0
-c_dist_totale = 0.0
-
 with col1:
     st.subheader("Dati Intestatario")
-    nome = st.text_input("Ragione Sociale / Nome Cognome").upper()
-    indirizzo = st.text_input("Indirizzo Completo")
+    nome_input = st.text_input("Ragione Sociale / Nome Cognome", key="nome").upper()
+    indirizzo = st.text_input("Indirizzo Completo", key="indirizzo")
     uso = st.selectbox("Regime Fiscale / IVA", ["IVA 10% (Domestico)", "IVA 22% (Business)", "P.A. (Split Payment)", "Esente"])
-    pod = st.text_input("Codice POD (se presente)").upper()
+    pod = st.text_input("Codice POD", key="pod").upper()
 
 with col2:
     st.subheader("Parametri Tecnici")
@@ -67,69 +60,58 @@ with col2:
     
     is_spostamento = "Spostamento" in pratica
     is_nuova = "Nuova" in pratica
+    c_tec, c_dist_totale = 0.0, 0.0
+    d_potenza = ""
 
     if is_spostamento:
         dist_choice = st.radio("Tipologia Spostamento", ["Entro 10 metri", "Oltre 10 metri"], horizontal=True)
         if dist_choice == "Entro 10 metri":
             c_tec = TIC_2026["SPOST_ENTRO_10"]
-            desc_riga_1 = "Corrispettivo Fisso Spostamento (Entro 10m)"
-            dettaglio_potenza = f"Quota Fissa Spostamento (Entro 10m): **{c_tec:.2f} €**"
+            d_potenza = f"Spostamento Fisso (<10m): **{c_tec:.2f} €**"
         else:
-            st.warning("⚠️ Spostamento > 10m: Distanza da preventivo distributore.")
-            metri_extra_spost = st.number_input("Quota Distanza (Metri eccedenti i 200m)", min_value=0, step=1, key="m_spost")
             c_tec = TIC_2026["SPOST_OLTRE_10"]
-            scatti_extra = math.ceil(metri_extra_spost/100)
-            c_dist_totale = TIC_2026["DIST_FISSA"] + (scatti_extra * TIC_2026["DIST_EXTRA"])
-            desc_riga_1 = "Corrispettivo Base Spostamento (> 10m)"
-            dettaglio_potenza = f"Quota Base Spostamento (> 10m): **{c_tec:.2f} €**"
-            dettaglio_distanza = f"Quota Distanza: {TIC_2026['DIST_FISSA']:.2f} € (fissa) + ({scatti_extra} scatti x {TIC_2026['DIST_EXTRA']:.2f} €) = **{c_dist_totale:.2f} €**"
+            c_dist_totale = st.number_input("Importo Quota Distanza (da preventivo Distributore)", min_value=0.0, step=10.0, key="dist_manuale")
+            d_potenza = f"Base Spostamento (>10m): **{c_tec:.2f} €**"
     else:
-        c_p1, c_p2 = st.columns(2)
-        p_att = c_p1.number_input("Potenza Attuale (kW)", min_value=0.0, value=3.0) if not is_nuova else 0.0
-        p_new = c_p2.number_input("Nuova Potenza (kW)", min_value=0.1, value=6.0)
+        cp1, cp2 = st.columns(2)
+        p_att = cp1.number_input("Potenza Attuale (kW)", min_value=0.0, step=0.5, key="p_att") if not is_nuova else 0.0
+        p_new = cp2.number_input("Nuova Potenza (kW)", min_value=0.1, step=0.5, key="p_new")
         
         t_new = st.selectbox("Tensione", ["BT", "MT"] if tipo_utenza == "Altri Usi" else ["BT"])
         f_new = 1.1 if (t_new == "BT" and p_new <= 30) else 1.0
         f_att = 1.1 if (not is_nuova and p_att <= 30) else 1.0
         px = TIC_2026["MT"] if t_new == "MT" else (TIC_2026["DOM_LE6"] if (tipo_utenza == "Domestico" and p_new <= 6) else TIC_2026["BT_ALTRI"])
         
-        delta_p = max(0.0, (p_new * f_new) - (p_att * f_att))
-        c_tec = delta_p * px
-        desc_riga_1 = f"Quota Potenza TIC ({p_new*f_new:.2f} kW Pd)"
-        dettaglio_potenza = f"Calcolo Potenza: {delta_p:.2f} kW (Δ Pd) x {px:.2f} €/kW = **{c_tec:.2f} €**"
+        dp = max(0.0, (p_new * f_new) - (p_att * f_att))
+        c_tec = dp * px
+        d_potenza = f"Quota Potenza: {dp:.2f} kW x {px:.2f} € = **{c_tec:.2f} €**"
 
         if is_nuova:
-            st.info("⚠️ Nuova Connessione: Distanza da preventivo distributore.")
-            metri_extra = st.number_input("Quota Distanza (Metri eccedenti i primi 200m)", min_value=0, step=1, key="m_nuova")
-            scatti_extra = math.ceil(metri_extra/100)
-            c_dist_totale = TIC_2026["DIST_FISSA"] + (scatti_extra * TIC_2026["DIST_EXTRA"])
-            dettaglio_distanza = f"Quota Distanza: {TIC_2026['DIST_FISSA']:.2f} € (fissa) + ({scatti_extra} scatti x {TIC_2026['DIST_EXTRA']:.2f} €) = **{c_dist_totale:.2f} €**"
+            c_dist_totale = st.number_input("Importo Quota Distanza (da preventivo Distributore)", min_value=0.0, step=10.0, key="dist_manuale")
 
     applica_gestione = st.checkbox("Applica Oneri Gestione Polis (10%)", value=True)
 
-# --- CALCOLI FINALI ---
+# --- CALCOLI ---
 c_gest = (c_tec + c_dist_totale + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if applica_gestione else 0.0
 tot_sogg_iva = c_tec + c_dist_totale + c_gest + TIC_2026["ISTRUTTORIA"]
-aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or "P.A." in uso) else 0.0)
-tot_iva = tot_sogg_iva * aliq
+is_pa = "P.A." in uso
+aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or is_pa) else 0.0)
+iva = tot_sogg_iva * aliq
 bollo = 2.0 if (uso == "Esente" and tot_sogg_iva > 77.47) else 0.0
-tot_finale = (tot_sogg_iva if "P.A." in uso else tot_sogg_iva + tot_iva) + bollo
+totale = (tot_sogg_iva if is_pa else tot_sogg_iva + iva) + bollo
 
-# --- ANTEPRIMA ANALITICA ---
+# --- ANTEPRIMA ---
 st.divider()
-st.subheader("🔍 Dettaglio Analitico dei Costi")
-c_ant1, c_ant2 = st.columns([2, 1])
-with c_ant1:
-    st.markdown(f"**1. Componente Tecnica:** {dettaglio_potenza}")
-    if dettaglio_distanza:
-        st.markdown(f"**2. Componente Distanza:** {dettaglio_distanza}")
-    st.markdown(f"**3. Istruttoria Pratica:** Quota fissa ARERA = **{TIC_2026['ISTRUTTORIA']:.2f} €**")
-    if applica_gestione:
-        st.markdown(f"**4. Gestione PolisEnergia:** (Tecnica + Distanza + {TIC_2026['FISSO_BASE_CALCOLO']:.2f} € base) x 10% = **{c_gest:.2f} €**")
-with c_ant2:
-    st.metric("Imponibile", f"{tot_sogg_iva:.2f} €")
-    st.metric("IVA", f"{tot_iva:.2f} €")
-    st.success(f"### TOTALE: {tot_finale:.2f} €")
+st.subheader("🔍 Riepilogo Costi")
+ca1, ca2 = st.columns(2)
+with ca1:
+    st.markdown(f"1. **Parte Tecnica**: {d_potenza}")
+    if c_dist_totale > 0: st.markdown(f"2. **Quota Distanza**: **{c_dist_totale:.2f} €**")
+    st.markdown(f"3. **Istruttoria**: {TIC_2026['ISTRUTTORIA']:.2f} €")
+    if applica_gestione: st.markdown(f"4. **Gestione (10%)**: {c_gest:.2f} €")
+with ca2:
+    st.metric("IMPONIBILE", f"{tot_sogg_iva:.2f} €")
+    st.success(f"### TOTALE IVATO: {totale:.2f} €")
 # --- PDF ---
 def genera_pdf():
     pdf = FPDF()
@@ -175,6 +157,12 @@ def genera_pdf():
 
 # --- BOTTONE ---
 if st.button("🚀 GENERA PDF"):
-    if nome and indirizzo:
-        pdf_out = genera_pdf(); st.download_button("📥 Scarica", data=bytes(pdf_out), file_name=f"Polis_{st.session_state.codice_causale}.pdf")
-    else: st.warning("Inserisci i dati obbligatori!")
+    if nome_input and indirizzo:
+        # Costruzione nome file dinamico
+        tipo_clean = pratica.replace(" ", "")
+        nome_clean = clean_filename(nome_input)
+        nome_file_final = f"Preventivo_{tipo_clean}_{nome_clean}_{st.session_state.codice_causale}.pdf"
+        
+        pdf_out = genera_pdf()
+        st.download_button("📥 Scarica Preventivo", data=bytes(pdf_out), file_name=nome_file_final)
+    else: st.warning("Compila Nome e Indirizzo!")
