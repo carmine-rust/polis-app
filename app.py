@@ -106,8 +106,7 @@ def genera_pdf():
         pdf.set_xy(10, 15); pdf.set_font("Helvetica", "B", 20); pdf.set_text_color(255, 255, 255); pdf.cell(0, 10, "POLIS ENERGIA")
     
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(80, 5, "POLIS ENERGIA SRL", ln=True, align='R')
-    pdf.set_font("Helvetica", "", 8); pdf.cell(80, 5, "Ufficio Tecnico | www.polisenergia.it", ln=True, align='R')
+    pdf.set_font("Helvetica", "", 8); pdf.cell(5, 5, "Ufficio Tecnico | www.polisenergia.it", ln=True, align='R')
     
     pdf.ln(25); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 10, f"PREVENTIVO PER: {nome}", ln=True)
