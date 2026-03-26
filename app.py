@@ -8,6 +8,16 @@ from fpdf import FPDF
 # 1. Configurazione Pagina
 st.set_page_config(page_title="Preventivatore PolisEnergia 4.0", page_icon="⚡", layout="wide")
 
+# --- INIZIALIZZAZIONE BLOCCATA (Previene NameError) ---
+if 'codice_causale' not in st.session_state:
+    st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+if 'nome_input' not in st.session_state:
+    st.session_state.nome_input = ""
+if 'indirizzo_input' not in st.session_state:
+    st.session_state.indirizzo_input = ""
+if 'pod_input' not in st.session_state:
+    st.session_state.pod_input = ""
+
 # --- FUNZIONI DI SERVIZIO ---
 def clean_filename(text):
     text = re.sub(r'[^\w\s-]', '', text).strip()
