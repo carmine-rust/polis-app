@@ -166,14 +166,16 @@ def genera_pdf():
     return pdf.output()
 
 # --- BOTTONE ---
+st.divider()
 if st.button("🚀 GENERA PDF"):
-    if nome_val and ind_val:
-        dati_per_pdf = {
-            'nome': nome_val, 'indirizzo': ind_val, 'pod': pod_val if pod_val else "N.D.",
+    if nome and indirizzo:
+        dati = {
+            'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
             'pratica': pratica, 'c_tec': c_tec, 'c_dist': c_dist, 'c_gest': c_gest,
-            'iva_perc': iva_perc, 'iva_euro': iva_euro, 'totale': totale_finale
+            'iva_perc': iva_p, 'iva_euro': iva_e, 'totale': totale
         }
-        pdf_finito = genera_pdf(dati_per_pdf)
-        nome_file = f"Preventivo_{pratica.replace(' ','')}_{clean_filename(nome_val)}_{st.session_state.codice_causale}.pdf"
-        st.download_button("📥 Scarica", data=bytes(pdf_finito), file_name=nome_file)
-    else: st.error("Inserisci Nome e Indirizzo!")
+        pdf_out = genera_pdf(dati)
+        filename = f"Preventivo_{pratica.replace(' ','')}_{clean_filename(nome)}_{st.session_state.codice_causale}.pdf"
+        st.download_button("📥 Scarica", data=bytes(pdf_out), file_name=filename)
+    else:
+        st.warning("Completa i dati cliente!")
