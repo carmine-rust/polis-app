@@ -34,24 +34,25 @@ def genera_pdf(d):
     pdf = FPDF()
     pdf.add_page()
     pdf.add_font('Lato', '', 'Lato-Regular.ttf', uni=True)
+    pdf.add_font('Lato', '', 'Lato-Bold.ttf', uni=True)
     pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
     if os.path.exists("logo_polis.png"):
         pdf.image("logo_polis.png", 10, 10, 33)
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Lato-Regular", "B", 8)
     pdf.cell(0, 5, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA)", align='R', ln=1)
-    pdf.set_font("Helvetica", "", 8); pdf.cell(80, 4, "www.polisenergia.it", align='R', ln=1)
-    pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 10)
+    pdf.set_font("Lato-Regular", "", 8); pdf.cell(0, 6, "www.polisenergia.it", align='R', ln=1)
+    pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Lato-Regular", "B", 10)
     pdf.cell(0, 6, f"SPETT.LE: {d['nome']}", ln=1)
-    pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"INDIRIZZO: {d['indirizzo']}", ln=1)
-    pdf.ln(10); pdf.set_font("Helvetica", "B", 12)
+    pdf.set_font("Lato-Regular", "", 10); pdf.cell(0, 6, f"INDIRIZZO: {d['indirizzo']}", ln=1)
+    pdf.ln(10); pdf.set_font("Lato-Regular", "B", 12)
     pdf.cell(0, 10, f"PREVENTIVO {d['pratica'].upper()} - POD: {d['pod']}", border="B", ln=1)
     
     pdf.ln(5); pdf.set_fill_color(0, 180, 216); pdf.set_text_color(255, 255, 255)
     pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True); pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
     
-    pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(0, 0, 0); pdf.set_font("Lato-Regular", "B", 9)
     pdf.cell(190, 8, " ONERI DISTRIBUTORE", 1, 1, 'L', True)
-    pdf.set_font("Helvetica", "", 10)
+    pdf.set_font("Lato-Regular", "", 10)
     
     desc_pot = f" Quota Potenza: da {d['p_att']}kW ({d['t_att']}) a {d['p_new']}kW ({d['t_new']})"
     pdf.cell(140, 8, desc_pot, 1); pdf.cell(50, 8, f"{d['c_tec']:.2f} EUR", 1, 1, 'R')
@@ -62,21 +63,21 @@ def genera_pdf(d):
     
     pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['c_gest']:.2f} EUR", 1, 1, 'R')
     
-    pdf.ln(2); pdf.set_font("Helvetica", "B", 10)
+    pdf.ln(2); pdf.set_font("Lato-Regular", "B", 10)
     pdf.cell(140, 9, " IMPONIBILE", 1); pdf.cell(50, 9, f"{d['imponibile']:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 9, f" IVA ({d['iva_perc']}%)", 1); pdf.cell(50, 9, f"{d['iva_euro']:.2f} EUR", 1, 1, 'R')
     if d['bollo'] > 0:
         pdf.cell(140, 9, "BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
     
-    pdf.set_fill_color(240, 240, 240); pdf.set_font("Helvetica", "B", 11)
+    pdf.set_fill_color(240, 240, 240); pdf.set_font("Lato-Regular", "B", 11)
     pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['totale']:.2f} EUR", 1, 1, 'R', True)
     
-    pdf.ln(10); pdf.set_font("Helvetica", "I", 8)
+    pdf.ln(10); pdf.set_font("Lato-Regular", "I", 8)
     pdf.multi_cell(190, 4, f"Causale: {st.session_state.codice_causale}\nIBAN:PolisEnergia srl - IT80P0103015200000007044056 - Monte dei Paschi di Siena")
     pdf.ln (70)
     curr_y = pdf.get_y()
     pdf.set_xy(130, curr_y)
-    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_font("Lato-Regular", "B", 9)
     pdf.cell(70, 5, "Per Accettazione (Il Cliente)", ln=1, align='C')
     pdf.set_xy(130, pdf.get_y() + 10)
     pdf.cell(70, 0, "", border="T") 
