@@ -82,6 +82,15 @@ aliq = 0.10 if "10%" in uso else (0.22 if ("22%" in uso or "P.A." in uso) else 0
 tot_iva = tot_sogg_iva * aliq
 tot_finale = (tot_sogg_iva if "P.A." in uso else tot_sogg_iva + tot_iva) + bollo_2
 
+# --- ANTEPRIMA A VIDEO ---
+st.divider()
+st.subheader("📊 Anteprima Calcoli (Soggetto a verifica)")
+v1, v2, v3, v4 = st.columns(4)
+v1.metric("Quota Tecnica", f"{c_tec:.2f} €", help="Quota Potenza o Base Spostamento")
+v2.metric("Quota Distanza", f"{c_dist_totale:.2f} €", delta="Soggetta a sopralluogo" if c_dist_totale > 0 else None)
+v3.metric("Oneri Gestione/Istr.", f"{c_gest + TIC_2026['ISTRUTTORIA']:.2f} €")
+v4.metric("TOTALE IVATO", f"{tot_finale:.2f} €", delta_color="inverse")
+
 # --- PDF ---
 def genera_pdf():
     pdf = FPDF()
