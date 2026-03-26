@@ -157,12 +157,13 @@ def genera_pdf():
 
 # --- BOTTONE ---
 if st.button("🚀 GENERA PDF"):
-    if nome_input and indirizzo:
-        # Costruzione nome file dinamico
-        tipo_clean = pratica.replace(" ", "")
-        nome_clean = clean_filename(nome_input)
-        nome_file_final = f"Preventivo_{tipo_clean}_{nome_clean}_{st.session_state.codice_causale}.pdf"
-        
-        pdf_out = genera_pdf()
-        st.download_button("📥 Scarica Preventivo", data=bytes(pdf_out), file_name=nome_file_final)
-    else: st.warning("Compila Nome e Indirizzo!")
+    if nome_val and ind_val:
+        dati_per_pdf = {
+            'nome': nome_val, 'indirizzo': ind_val, 'pod': pod_val if pod_val else "N.D.",
+            'pratica': pratica, 'c_tec': c_tec, 'c_dist': c_dist, 'c_gest': c_gest,
+            'iva_perc': iva_perc, 'iva_euro': iva_euro, 'totale': totale_finale
+        }
+        pdf_finito = genera_pdf(dati_per_pdf)
+        nome_file = f"Preventivo_{pratica.replace(' ','')}_{clean_filename(nome_val)}_{st.session_state.codice_causale}.pdf"
+        st.download_button("📥 Scarica", data=bytes(pdf_finito), file_name=nome_file)
+    else: st.error("Inserisci Nome e Indirizzo!")
