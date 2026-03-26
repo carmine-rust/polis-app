@@ -169,14 +169,17 @@ def genera_pdf():
 # --- BOTTONE ---
 st.divider()
 if st.button("🚀 GENERA PDF"):
-    if nome and indirizzo:
+    # Controlliamo direttamente lo session_state invece di variabili locali
+    if st.session_state.nome_input and st.session_state.indirizzo_input:
         dati = {
-            'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
+            'nome': st.session_state.nome_input.upper(), 
+            'indirizzo': st.session_state.indirizzo_input, 
+            'pod': st.session_state.pod_input.upper() if st.session_state.pod_input else "N.D.",
             'pratica': pratica, 'c_tec': c_tec, 'c_dist': c_dist, 'c_gest': c_gest,
             'iva_perc': iva_p, 'iva_euro': iva_e, 'totale': totale
         }
         pdf_out = genera_pdf(dati)
-        filename = f"Preventivo_{pratica.replace(' ','')}_{clean_filename(nome)}_{st.session_state.codice_causale}.pdf"
+        filename = f"Preventivo_{pratica.replace(' ','')}_{clean_filename(st.session_state.nome_input)}_{st.session_state.codice_causale}.pdf"
         st.download_button("📥 Scarica", data=bytes(pdf_out), file_name=filename)
     else:
-        st.warning("Completa i dati cliente!")
+        st.error("⚠️ Errore: Inserisci Ragione Sociale e Indirizzo prima di generare!")
