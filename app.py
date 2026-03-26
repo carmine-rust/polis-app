@@ -17,9 +17,10 @@ if 'indirizzo_input' not in st.session_state:
     st.session_state.indirizzo_input = ""
 if 'pod_input' not in st.session_state:
     st.session_state.pod_input = ""
-
-# --- FUNZIONI DI SERVIZIO ---
+    
+# --- FUNZIONI ---
 def clean_filename(text):
+    if not text: return "CLIENTE"
     text = re.sub(r'[^\w\s-]', '', text).strip()
     return re.sub(r'[-\s]+', '_', text).upper()
 
