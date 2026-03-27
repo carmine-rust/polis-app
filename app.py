@@ -169,6 +169,26 @@ elif "Nuova" in pratica:
 elif "Spostamento" in pratica:
     s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
     c_dist = SPOSTAMENTO_10MT if "Entro" in s_dist else st.number_input("Costo Rilievo €", 0.0, key="sdc")
+   
+    p_att = st.number_input("Potenza Attuale (kW)", value=0.0)
+    p_new = st.number_input("Potenza Richiesta (kW)", value=0.0)
+    is_domestico = st.checkbox("Utenza Domestica") # <--- Fondamentale per la tua regola
+    passaggio_mt = st.checkbox("Passaggio a MT")
+    if p_new <= 30:
+    v_new = format_franchigia(p_new)
+    v_att = format_franchigia(p_att) if p_att > 0 else 0.0
+    delta = round(v_new - v_att, 1)
+    
+    # Agevolazione Domestico <= 6kW
+    if is_domestico and p_new <= 6:
+        tar = TIC_DOMESTICO_LE6
+    else:
+        tar = TIC_ALTRI_USI_BT
+else:
+    # Oltre 30 kW (Senza franchigia)
+    delta = round(p_new - p_att, 1)
+    tar = TIC_MT if passaggio_mt else TIC_ALTRI_USI_BT
+
 
 # --- CALCOLO (SEMPRE ATTIVO) ---
 tar = TIC_MT if t_new == "MT" else (TIC_DOMESTICO_LE6 if (tipo_ut == "Domestico" and p_new <= 6) else TIC_ALTRI_USI_BT)
@@ -180,7 +200,7 @@ else:
     v_new = format_franchigia(p_new)
     v_att = format_franchigia(p_att) if p_att > 0 else 0.0
     delta_kw = round(v_new - v_att, 1)
-    c_tec = round(delta_kw * tar, 2)
+    c_tec = round(delta * tar, 2)
     if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
     if "Nuova" in pratica: c_tec += c_dist
 
