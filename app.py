@@ -205,7 +205,7 @@ if submit:
         }
         cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
         try:
-            pdf_generato = genera_pdf(dati_pdf, cod_pratica)
+            pdf_generato = genera_pdf(dati, cod_pratica)
             st.session_state.pdf_pronto = pdf_generato
             st.session_state.codice_per_mail = cod_pratica
             st.session_state.pratica_per_mail = pratica
