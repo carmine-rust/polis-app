@@ -214,13 +214,23 @@ if submit:
             st.download_button("📥 SCARICA PDF", data=bytes(pdf_file), file_name=f"{cod_pratica}.pdf", use_container_width=True)
             
             # Salvataggio Cloud (opzionale se hai configurato GSheets)
-            try:
-                df_cloud = conn.read()
-                nuovo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m/%Y"), "Codice": cod_pratica, "Cliente": nome, "Totale": round(tot, 2)}])
-                conn.update(data=pd.concat([df_cloud, nuovo], ignore_index=True))
-            except: pass
+            # 1. Leggi i dati esistenti
+            df_esistente = conn.read(ttl=0) # ttl=0 forza l'aggiornamento senza cache
             
+            # 2. Crea la nuova riga assicurandoti che i nomi delle colonne siano IDENTICI a quelli sul foglio
+            nuova_riga = pd.DataFrame([{
+                "Data": datetime.now().strftime("%d/%m/%Y"),
+                "Codice": str(cod_pratica),
+                "Cliente": str(nome),
+                "Totale": float(tot)
+            }])
+            
+            # 3. Unisci e pulisci da eventuali valori nulli
+            df_finale = pd.concat([df_esistente, nuova_riga], ignore_index=True).fillna("")
+            
+            # 4. Sovrascrivi il foglio
+            conn.update(data=df_finale)
+            st.success(f"✅ Archiviato correttamente su Google Sheets!")
         except Exception as e:
-            st.error(f"Errore tecnico nel PDF: {e}")
-    else:
-        st.error("Inserisci Ragione Sociale e Indirizzo.")
+            st.error(f"Errore di scrittura nel Cloud: {e}")
+            st.info("Assicurati che la prima riga del foglio abbia: Data, Codice, Cliente, Totale")
