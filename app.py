@@ -96,25 +96,24 @@ with st.form("main_form"):
         
         if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
             if tipo_ut == "Altri Usi":
-                flag_passaggio_mt = st.checkbox("🔄 Passaggio a MT?")
+                flag_passaggio_mt = st.checkbox("🔄 Passaggio a MT?", key="chk_mt")
                 if flag_passaggio_mt:
                     t_att, t_new = "BT", "MT"
                 else:
-                    t_att, t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
+                    t_att, t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True, key="radio_tens_aumento")
             cp1, cp2 = st.columns(2)
-            p_att = cp1.number_input("Potenza Partenza (kW)", value=3.0, step=0.5)
-            p_new = cp2.number_input("Nuova Potenza (kW)", value=6.0, step=0.5)
+            p_att = cp1.number_input("Potenza Partenza (kW)", value=3.0, step=0.5, key="p_partenza")
+            p_new = cp2.number_input("Nuova Potenza (kW)", value=6.0, step=0.5, key="p_richiesta")
             
         elif pratica == "Nuova Connessione":
-            t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True) if tipo_ut == "Altri Usi" else "BT"
-            p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
-            c_dist = st.number_input("Quota Distanza (da inserire a mano) (€)", value=0.0)
+            if tipo_ut == "Altri Usi":
+                t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True, key="radio_tens_nuova") 
+            p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5, key="p_nuova_conn")
+            c_dist = st.number_input("Quota Distanza (da inserire a mano) (€)", value=0.0, key="distanza_nuova")
         elif pratica == "Spostamento":
-            s_distanza = st.radio("Distanza Spostamento", ["Entro i 10 mt", "Oltre i 10 mt"], horizontal=True)
+            s_distanza = st.radio("Distanza Spostamento", ["Entro i 10 mt", "Oltre i 10 mt"], horizontal=True, key="radio_spost")
             if "Oltre" in s_distanza:
-                c_dist = st.number_input("Costo Spostamento Oltre 10mt (a mano) (€)", value=0.0)
-
-        app_gest = st.checkbox("Gestione Polis (10%)", value=True)
+                c_dist = st.number_input("Costo Spostamento Oltre 10mt (a mano) (€)", value=0.0, key="distanza_spost_manuale")
 
         app_gest = st.checkbox("Gestione Polis (10%)", value=True)
     
