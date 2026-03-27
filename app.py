@@ -112,7 +112,7 @@ with st.form("main_form"):
         nome = st.text_input("Ragione Sociale", key="ragione_sociale").upper()
         indirizzo = st.text_input("Indirizzo", key="indirizzo_cliente")
         uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"])
-        pod = st.text_input("POD", key="poc_cliente").upper()
+        pod = st.text_input("POD", key="pod_cliente").upper()
 
     with c2:
         st.subheader("⚙️ 2. Dati Tecnici")
