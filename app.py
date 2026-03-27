@@ -321,18 +321,24 @@ if st.session_state.pdf_pronto:
     st.subheader("✉️ Invia Preventivo via Email")
     
     col_m1, col_m2 = st.columns([1, 2])
+    codice_corrente = st.session_state.get('ultimo_cod', "N.D.")
     with col_m1:
         mail_cliente = st.text_input("Email destinatario")
     with col_m2:
-        testo_mail = st.text_area("Testo della mail", value=f"Spett.le Cliente, in allegato il preventivo {st.session_state.ultimo_cod}...")
+        testo_default = f"Spett.le Cliente, in allegato il preventivo {codice_corrente}..."
+        testo_mail = st.text_area("Testo della mail", value=testo_default, key="mail_text")
 
     if st.button("🚀 INVIA ORA"):
         if mail_cliente:
             with st.spinner("Invio in corso..."):
-                ok = invia_mail_aruba(mail_cliente, f"Preventivo Polis - {st.session_state.ultimo_cod}", testo_mail, st.session_state.pdf_pronto, f"{st.session_state.ultimo_cod}.pdf")
+                ok = invia_mail_aruba(
+                    mail_cliente, 
+                    f"Preventivo Polis - {codice_corrente}", 
+                    testo_mail, 
+                    st.session_state.pdf_pronto, 
+                    f"{codice_corrente}.pdf"
+                )
                 if ok:
                     st.success("📩 Mail inviata correttamente!")
                     st.balloons()
-        else:
-            st.error("Inserisci l'indirizzo email!")
             
