@@ -17,7 +17,14 @@ st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡"
 # --- INIZIALIZZAZIONE STATO ---
 if 'seq' not in st.session_state: st.session_state.seq = 0
 if 'pdf_pronto' not in st.session_state: st.session_state.pdf_pronto = None
+if 'ultimo_codice' not in st.session_state:
+    st.session_state.ultimo_codice = "In attesa..."
 
+if 'seq' not in st.session_state:
+    st.session_state.seq = 0
+
+if 'pdf_pronto' not in st.session_state:
+    st.session_state.pdf_pronto = None
 # --- CONNESSIONE A GOOGLE SHEETS ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
