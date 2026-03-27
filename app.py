@@ -229,12 +229,12 @@ if submit:
     if 'pdf_pronto' in st.session_state:
         st.divider()
         dest_mail = st.text_input("Email del cliente", key="mail_dest")
-            if st.button("🚀 INVIA ORA"):
-                 # Chiamata alla funzione Aruba
-                successo = invia_preventivo_email(dest_mail, "Oggetto", "Testo", st.session_state.pdf_pronto, "file.pdf")
-                if successo:
-                    st.balloons()
-                    st.success("Inviata!")
+        if st.button("🚀 INVIA ORA"):
+            # Chiamata alla funzione Aruba
+             successo = invia_preventivo_email(dest_mail, "Oggetto", "Testo", st.session_state.pdf_pronto, "file.pdf")
+             if successo:
+                st.balloons()
+                st.success("Inviata!")
     # Generazione PDF
         try:
             pdf_file = genera_pdf(dati, cod_pratica)
