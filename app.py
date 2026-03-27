@@ -129,7 +129,7 @@ elif pratica == "Spostamento":
         if "Oltre" in s_distanza:
             c_dist = st.number_input("Costo Spostamento (€) - Inserimento manuale", value=0.0, key="distanza_spost_manuale")
         else:
-            st.info(f"Costo Fisso applicato: {TIC_2026['SPOST_FISSO']}€")
+            st.info(f"Costo Fisso applicato: {TIC_2026['SPOST_ENTRO_10']}€")
 
 st.divider()
 app_gest = st.checkbox("Gestione Polis (10%)", value=True, key="chk_gestione_polis")
