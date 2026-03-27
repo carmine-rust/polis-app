@@ -67,7 +67,9 @@ def genera_pdf(d, cod):
     pdf.cell(140, 9, f" IVA ({d['iva_perc']}%)", 1); pdf.cell(50, 9, f"{d['iva_euro']:.2f} EUR", 1, 1, 'R')
     if d['bollo'] > 0: pdf.cell(140, 9, " BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
     pdf.set_fill_color(240, 240, 240); pdf.cell(140, 11, " TOTALE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['totale']:.2f} EUR", 1, 1, 'R', True)
-    return pdf.output(dest='S').encode('latin-1')
+    
+    # RITORNO CORRETTO PER STREAMLIT (BYTES)
+    return bytes(pdf.output())
 
 # --- INTERFACCIA ---
 st.title("⚡ PolisEnergia")
@@ -96,30 +98,28 @@ with st.form("main_form"):
                 if flag_mt:
                     t_att, t_new = "BT", "MT"
                 else:
-                    t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
+                    t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True, key="t_radio")
             else:
-                t_att = t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True)
+                t_att = t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True, key="tr_radio")
         else:
             t_att = t_new = "BT"
 
         st.markdown("---")
-        if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
-            cp1, cp2 = st.columns(2)
-            p_att = cp1.number_input("Potenza DI PARTENZA (kW)", value=3.0, step=0.5)
-            p_new = cp2.number_input("Nuova Potenza RICHIESTA (kW)", value=6.0, step=0.5)
-        
-        elif pratica == "Nuova Connessione":
+        if "Nuova" in pratica:
             p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
-            c_dist = st.number_input("Quota Distanza Distributore (€)", value=0.0)
-            
-        elif pratica == "Spostamento":
+            c_dist = st.number_input("Quota Distanza Distributore (€)", value=187.0)
+        elif "Spostamento" in pratica:
             s_choice = st.radio("Distanza", ["Entro 10m", "Oltre 10m"], horizontal=True)
-            if s_choice == "Oltre 10m":
+            if "Oltre" in s_choice:
                 c_dist = st.number_input("Quota Distanza (€)", value=0.0)
+        else: # Aumento o Subentro
+            cp1, cp2 = st.columns(2)
+            p_att = cp1.number_input("Potenza Partenza (kW)", value=3.0, step=0.5)
+            p_new = cp2.number_input("Potenza Richiesta (kW)", value=6.0, step=0.5)
 
         app_gest = st.checkbox("Gestione Polis (10%)", value=True)
     
-    submit = st.form_submit_button("📁 GENERA, ARCHIVIA E SCARICA")
+    submit = st.form_submit_button("📁 GENERA PREVENTIVO")
 
 # --- CALCOLO ---
 if submit:
@@ -132,15 +132,14 @@ if submit:
         px_att = get_tariffa(t_att, p_att, tipo_ut)
         px_new = get_tariffa(t_new, p_new, tipo_ut)
         
-        if pratica == "Spostamento":
-            c_tec = TIC_2026["SPOST_ENTRO_10"] if s_choice == "Entro 10m" else TIC_2026["SPOST_OLTRE_10"]
-        elif pratica == "Nuova Connessione":
+        # LOGICA TECNICA RIPRISTINATA
+        if "Spostamento" in pratica:
+            c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
+        elif "Nuova" in pratica:
             c_tec = math.ceil(p_new) * px_new
-        else:
+        else: # Aumento / Subentro
             f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
-            p_att_virtuale = p_att * f_att 
-            p_new_arrotondata = math.ceil(p_new) 
-            c_tec = max(0.0, (p_new_arrotondata * px_new) - (p_att_virtuale * px_att))
+            c_tec = max(0.0, (math.ceil(p_new) * px_new) - (p_att * f_att * px_att))
             
         c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
         imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
@@ -152,31 +151,24 @@ if submit:
         dati = {
             'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
             'pratica': pratica, 't_att': t_att, 't_new': t_new, 'c_tec': c_tec, 'c_dist': c_dist, 
-            'c_gest': c_gest, 'p_att': p_att, 'p_new': p_new,
-            'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
+            'c_gest': c_gest, 'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
         
         cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
-        
-        # Correzione errore pdf_file: assegniamo l'output di genera_pdf direttamente allo stato
         st.session_state.pdf_pronto = genera_pdf(dati, cod_pratica)
         st.session_state.ultimo_codice = cod_pratica
         st.session_state.seq = (st.session_state.seq + 1) % 10
-        
         st.rerun()
 
-# --- INVIO MAIL E DOWNLOAD ---
+# --- SEZIONE INVIO E DOWNLOAD ---
 if st.session_state.pdf_pronto:
     st.divider()
-    c_m1, c_m2 = st.columns([1, 2])
-    with c_m1:
-        mail_c = st.text_input("Email Cliente", key="m_c")
-        st.download_button("📥 SCARICA PDF", data=st.session_state.pdf_pronto, file_name=f"{st.session_state.ultimo_codice}.pdf")
-    with c_m2:
-        txt = st.text_area("Messaggio", value=f"In allegato preventivo {st.session_state.ultimo_codice}", key="m_t")
+    col_dl, col_mail = st.columns([1, 2])
+    with col_dl:
+        st.download_button("📥 SCARICA PDF", data=st.session_state.pdf_pronto, file_name=f"{st.session_state.ultimo_codice}.pdf", mime="application/pdf")
+    with col_mail:
+        mail_c = st.text_input("Email Cliente")
+        txt = st.text_area("Messaggio", value=f"In allegato il preventivo {st.session_state.ultimo_codice}")
         if st.button("🚀 INVIA"):
-            if mail_c:
-                if invia_mail_aruba(mail_c, f"Preventivo {st.session_state.ultimo_codice}", txt, st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf"):
-                    st.success("Inviata!"); st.balloons()
-            else:
-                st.warning("Inserire un'email.")
+            if invia_mail_aruba(mail_c, f"Preventivo {st.session_state.ultimo_codice}", txt, st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf"):
+                st.success("Inviato!"); st.balloons()
