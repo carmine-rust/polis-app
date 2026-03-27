@@ -14,6 +14,9 @@ import ssl
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
+# --- INIZIALIZZAZIONE STATO ---
+if 'seq' not in st.session_state: st.session_state.seq = 0
+if 'pdf_pronto' not in st.session_state: st.session_state.pdf_pronto = None
 
 # --- CONNESSIONE A GOOGLE SHEETS ---
 try:
@@ -21,11 +24,27 @@ try:
 except Exception as e:
     st.error(f"Errore connessione Cloud: {e}")
 
-# --- INIZIALIZZAZIONE STATO ---
-if 'seq' not in st.session_state:
-    st.session_state.seq = 0
-if 'ultimo_codice' not in st.session_state:
-    st.session_state.ultimo_codice = "Non ancora generato"
+# --- FUNZIONE INVIO MAIL  ---
+def invia_mail_aruba(destinatario, oggetto, corpo, pdf_bytes, nome_file):
+     try:
+        msg = MIMEMultipart()
+        msg['From'] = st.secrets["EMAIL_SENDER"]
+        msg['To'] = destinatario
+        msg['Subject'] = oggetto
+        msg.attach(MIMEText(corpo, 'plain'))
+        
+        part = MIMEApplication(pdf_bytes, Name=nome_file)
+        part['Content-Disposition'] = f'attachment; filename="{nome_file}"'
+        msg.attach(part)
+        
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(st.secrets["EMAIL_SERVER"], st.secrets["EMAIL_PORT"], context=context) as server:
+            server.login(st.secrets["EMAIL_SENDER"], st.secrets["EMAIL_PASSWORD"])
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Errore Aruba: {e}")
+        return False
 
 def clean_filename(text):
     if not text: return "CLIENTE"
@@ -288,26 +307,24 @@ if submit:
         except Exception as e:
             st.error(f"Errore di scrittura nel Cloud: {e}")
             st.info("Assicurati che la prima riga del foglio abbia: Data, Codice, Cliente, Totale")
+# --- SEZIONE INVIO MAIL (Compare solo se il PDF è pronto) ---
+if st.session_state.pdf_pronto:
+    st.divider()
+    st.subheader("✉️ Invia Preventivo via Email")
+    
+    col_m1, col_m2 = st.columns([1, 2])
+    with col_m1:
+        mail_cliente = st.text_input("Email destinatario")
+    with col_m2:
+        testo_mail = st.text_area("Testo della mail", value=f"Spett.le Cliente, in allegato il preventivo {st.session_state.ultimo_cod}...")
+
+    if st.button("🚀 INVIA ORA"):
+        if mail_cliente:
+            with st.spinner("Invio in corso..."):
+                ok = invia_mail_aruba(mail_cliente, f"Preventivo Polis - {st.session_state.ultimo_cod}", testo_mail, st.session_state.pdf_pronto, f"{st.session_state.ultimo_cod}.pdf")
+                if ok:
+                    st.success("📩 Mail inviata correttamente!")
+                    st.balloons()
+        else:
+            st.error("Inserisci l'indirizzo email!")
             
-# --- FUNZIONE INVIO MAIL ---
-        def invia_preventivo_email(destinatario, oggetto, corpo, allegato_pdf, nome_file):
-            try:
-                msg = MIMEMultipart()
-                msg['From'] = st.secrets["EMAIL_SENDER"]
-                msg['To'] = destinatario
-                msg['Subject'] = oggetto
-                msg.attach(MIMEText(corpo, 'plain'))
-
-                part = MIMEApplication(allegato_pdf, Name=nome_file)
-                part['Content-Disposition'] = f'attachment; filename="{nome_file}"'
-                msg.attach(part)
-
-                context = ssl.create_default_context()
-
-                with smtplib.SMTP_SSL(st.secrets["EMAIL_SERVER"], st.secrets["EMAIL_PORT"], context=context) as server:
-                    server.login(st.secrets["EMAIL_SENDER"], st.secrets["EMAIL_PASSWORD"])
-                    server.send_message(msg)
-                    return True
-            except Exception as e:
-                    st.error(f"Errore Aruba Mail: {e}")
-                    return False
