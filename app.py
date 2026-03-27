@@ -161,19 +161,20 @@ if st.button("📁 GENERA PREVENTIVO", use_container_width=True):
         iva_e = imp * (iva_p/100)
         bollo = 2.0 if (uso == "Esente" and imp > 77.47) else 0.0
         tot = (imp if "P.A." in uso else imp + iva_e) + bollo
-
-        dati = {
-            'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
-            'pratica': pratica, 't_att': t_att, 't_new': t_new, 'c_tec': c_tec, 'c_dist': c_dist, 
-            'c_gest': c_gest, 'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
-        }
         
-        st.session_state.pdf_pronto = genera_pdf(dati, f"BA{int(tot)}")
-        st.session_state.ultimo_codice = f"BA{int(tot)}{st.session_state.seq}"
-        st.session_state.seq = (st.session_state.seq + 1) % 10
-        st.rerun()
-    
-    submit = st.form_submit_button("📁 GENERA PREVENTIVO")
+        if st.button("📁 GENERA PREVENTIVO", use_container_width=True, type="primary"):
+            if nome and indirizzo:
+                dati = {
+                    'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
+                    'pratica': pratica, 't_att': t_att, 't_new': t_new, 'c_tec': c_tec, 'c_dist': c_dist, 
+                    'c_gest': c_gest, 'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
+                }
+                st.session_state.pdf_pronto = genera_pdf(dati, f"BA{int(tot)}")
+                st.session_state.ultimo_codice = f"BA{int(tot)}{st.session_state.seq}"
+                st.session_state.seq = (st.session_state.seq + 1) % 10
+                st.rerun()
+            else:
+                st.error("Inserire Ragione Sociale e Indirizzo prima di generare!")
 
 # --- SEZIONE INVIO E DOWNLOAD ---
 if st.session_state.pdf_pronto:
