@@ -222,7 +222,7 @@ if submit:
         }
         st.table(pd.DataFrame(preview))
         
-        pdf_file = genera_pdf(dati)
+        pdf_file = genera_pdf(dati_pdf, cod_pratica)
         st.download_button("📥 SCARICA PREVENTIVO PDF", data=bytes(pdf_file), file_name=f"Preventivo_{st.session_state.codice_causale}_{clean_filename(nome)}.pdf", use_container_width=True)
     else:
         st.error("Inserire Ragione Sociale e Indirizzo.")
