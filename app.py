@@ -249,25 +249,42 @@ if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_w
 # --- 5. MAIL (COMPARE SOLO SE IL PDF È STATO GENERATO) ---
 if 'pdf_bytes' in st.session_state:
     st.divider()
-    st.subheader("✉️ Invia Email e Scarica")
+    st.subheader("✉️ 2. Invio Email e Download")
     
-    msg_def = f"Gentile {nome},\nin allegato il preventivo {st.session_state.current_cod} per il POD {pod}.\nCordiali saluti."
-    corpo = st.text_area("Messaggio:", value=msg_def, height=150)
+    # Recuperiamo i dati dalla sessione per sicurezza
+    destinatario = email_dest if email_dest else "Inserire mail in alto"
+    testo_mail = st.text_area("Messaggio:", f"Gentile cliente,\nin allegato il preventivo {st.session_state.current_cod}.\nSaluti.")
     
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
-        if st.button("📧 INVIA MAIL AL CLIENTE", use_container_width=True):
-            try:
-                msg = MIMEMultipart()
-                msg['From'], msg['To'], msg['Subject'] = SENDER_EMAIL, email_dest, f"Preventivo {st.session_state.current_cod}"
-                msg.attach(MIMEText(corpo))
-                part = MIMEApplication(st.session_state.pdf_bytes, Name=f"{st.session_state.current_cod}.pdf")
-                part['Content-Disposition'] = f'attachment; filename="{st.session_state.current_cod}.pdf"'
-                msg.attach(part)
-                with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as s:
-                    s.starttls(); s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
-                st.success("📩 Mail inviata!")
-            except: st.error("Errore invio mail.")
-            
+        if st.button("📧 INVIA ORA AL CLIENTE", use_container_width=True):
+            if not email_dest:
+                st.error("❌ Manca l'indirizzo email del destinatario!")
+            else:
+                try:
+                    # COSTRUZIONE MESSAGGIO
+                    msg = MIMEMultipart()
+                    msg['From'] = SENDER_EMAIL
+                    msg['To'] = email_dest
+                    msg['Subject'] = f"Preventivo PolisEnergia {st.session_state.current_cod}"
+                    msg.attach(MIMEText(testo_mail, 'plain'))
+                    
+                    # ALLEGATO PDF
+                    filename = f"{st.session_state.current_cod}.pdf"
+                    part = MIMEApplication(st.session_state.pdf_bytes, Name=filename)
+                    part['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    msg.attach(part)
+
+                    # CONNESSIONE E INVIO REALE
+                    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                        server.set_debuglevel(0) # Metti 1 per vedere i log tecnici se ancora non va
+                        server.starttls()
+                        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                        server.send_message(msg)
+                    
+                    st.success(f"📩 Mail inviata con successo a: {email_dest}")
+                except Exception as e:
+                    st.error(f"❌ Errore durante l'invio: {str(e)}")
+    
     with c_btn2:
         st.download_button("📥 SCARICA PDF", st.session_state.pdf_bytes, f"{st.session_state.current_cod}.pdf", use_container_width=True)
