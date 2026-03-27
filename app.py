@@ -28,9 +28,11 @@ def clean_filename(text):
     return re.sub(r'[-\s]+', '_', text).upper()
 
 def reset_campi():
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.rerun()
+    # Elenco delle chiavi da svuotare (aggiungi quelle che usi)
+    chiavi_da_pulire = ['ragione_sociale', 'indirizzo_cliente', 'pod_cliente', 'p_att', 'p_new']
+    for key in chiavi_da_pulire:
+        if key in st.session_state:
+            st.session_state[key] = "" if isinstance(st.session_state[key], str) else 0.0
 
 TIC_2026 = {
     "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
@@ -103,10 +105,10 @@ with st.form("main_form"):
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("📋 1. Anagrafica")
-        nome = st.text_input("Ragione Sociale").upper()
-        indirizzo = st.text_input("Indirizzo")
+        nome = st.text_input("Ragione Sociale", key="ragione_sociale").upper()
+        indirizzo = st.text_input("Indirizzo", key="indirizzo_cliente")
         uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"])
-        pod = st.text_input("POD").upper()
+        pod = st.text_input("POD", key="poc_cliente").upper()
 
     with c2:
         st.subheader("⚙️ 2. Dati Tecnici")
