@@ -10,8 +10,13 @@ import os
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
 
-if 'codice_causale' not in st.session_state:
-    st.session_state.codice_causale = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+# Gestione del sequenziale (0-9) nella sessione attuale
+if 'contatore_sequenziale' not in st.session_state:
+    st.session_state.contatore_sequenziale = 0
+
+def incrementa_sequenziale():
+    # Incrementa e torna a 0 se supera 9
+    st.session_state.contatore_sequenziale = (st.session_state.contatore_sequenziale + 1) % 10
 
 def clean_filename(text):
     if not text: return "CLIENTE"
