@@ -265,32 +265,34 @@ if 'pdf_bytes' in st.session_state:
             if not email_dest or "@" not in email_dest:
                 st.error("❌ Errore: Inserisci un indirizzo email valido nel campo 'Email Cliente' in alto.")
             else:
-                with st.spinner("Invio in corso..."):
-                    try:
-                        # Costruzione del Messaggio
+                try:
+                    with st.spinner("Connessione al server Aruba in corso..."):
+                        # Creazione messaggio (rimane uguale a prima)
                         msg = MIMEMultipart()
                         msg['From'] = SENDER_EMAIL
                         msg['To'] = email_dest
                         msg['Subject'] = f"Preventivo PolisEnergia {st.session_state.current_cod}"
                         msg.attach(MIMEText(corpo_mail, 'plain'))
-                        
-                        # Allegato PDF dallo Stato della Sessione
+
+                        # Allegato PDF (rimane uguale)
                         filename = f"{st.session_state.current_cod}.pdf"
                         part = MIMEApplication(st.session_state.pdf_bytes, Name=filename)
                         part['Content-Disposition'] = f'attachment; filename="{filename}"'
                         msg.attach(part)
 
-                        # Connessione SMTP Reale
-                        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-                        server.starttls()
-                        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                        server.send_message(msg)
-                        server.quit()
-                        
-                        st.success(f"✅ Mail inviata con successo a {email_dest}!")
-                    except Exception as e:
-                        st.error(f"❌ Errore Tecnico: {str(e)}")
-                        st.warning("Verifica la 'Password per le App' di Google e i segreti SMTP.")
+                        # --- LOGICA SPECIFICA ARUBA (Porta 465 SSL) ---
+                        import ssl
+                        context = ssl.create_default_context()
+        
+                        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+                            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                            server.send_message(msg)
+            
+                        st.success(f"✅ Mail inviata correttamente tramite Aruba a {email_dest}!")
+                        st.balloons()
+                except Exception as e:
+                     st.error(f"❌ Errore Aruba: {e}")
+                     st.warning("Verifica se la porta 465 è corretta o prova la 587 con starttls.")
     
     with c_btn2:
         # Tasto Download sempre disponibile
