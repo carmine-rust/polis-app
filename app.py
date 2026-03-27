@@ -1,26 +1,26 @@
 import streamlit as st
 import math
-import random
-import string
 import re
 import pandas as pd
 from fpdf import FPDF
 import os
+from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
 
 # --- CONNESSIONE A GOOGLE SHEETS ---
-# Nota: Richiede il setup dei "Secrets" su Streamlit Cloud
-conn = st.connection("gsheets", type=GSheetsConnection)
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error(f"Errore connessione Cloud: {e}")
 
-# Gestione del sequenziale (0-9) nella sessione attuale
-if 'contatore_sequenziale' not in st.session_state:
-    st.session_state.contatore_sequenziale = 0
-
-def incrementa_sequenziale():
-    # Incrementa e torna a 0 se supera 9
-    st.session_state.contatore_sequenziale = (st.session_state.contatore_sequenziale + 1) % 10
+# --- INIZIALIZZAZIONE STATO ---
+if 'seq' not in st.session_state:
+    st.session_state.seq = 0
+if 'ultimo_codice' not in st.session_state:
+    st.session_state.ultimo_codice = "Non ancora generato"
 
 def clean_filename(text):
     if not text: return "CLIENTE"
@@ -92,7 +92,7 @@ def genera_pdf(d, cod_pratica):
 
 # --- INTERFACCIA ---
 st.title("⚡ PolisEnergia")
-st.caption(f"Preventivatore 4.0 | Codice: {st.session_state.codice_causale}")
+st.caption(f"Preventivatore 4.0 | Codice: {st.session_state.ultimo_codice}")
 
 if st.button("🔴 RESET / PULISCI TUTTI I CAMPI"):
     reset_campi()
