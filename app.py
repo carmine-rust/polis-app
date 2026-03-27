@@ -80,7 +80,7 @@ def genera_pdf_polis(d):
     
     # Righe Tabella
     voci = [
-        ("Quota Tecnica TIC (Potenza Disponibile)", f"{d['C_Tec']:.2f}"),
+        ("Quota Tecnica", f"{d['C_Tec']:.2f}"),
         ("Oneri Amministrativi", f"{d['Oneri']:.2f}"),
         ("Oneri Gestione Pratica", f"{d['Gestione']:.2f}")
     ]
@@ -207,7 +207,7 @@ with col_tab2:
 
 # --- 4. AZIONI (GENERA, ARCHIVIA) ---
 if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_width=True):
-    cod = f"PREV2026{st.session_state.seq:04d}"
+    cod = datetime.now().strftime("%y%m%d%H%M%S")
     
     # PDF
     dati_pdf = {
