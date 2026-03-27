@@ -231,12 +231,13 @@ if submit:
         }
         cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
         try:
-            pdf_generato = genera_pdf(dati, cod_pratica)
-            st.session_state.pdf_pronto = pdf_generato
+            pdf_file = genera_pdf(dati, cod_pratica)
+            st.session_state.pdf_pronto = pdf_file
             st.session_state.codice_per_mail = cod_pratica
             st.session_state.pratica_per_mail = pratica
 
             st.success(f"✅ Preventivo {cod_pratica} generato!")
+            st.download_button("📥 Scarica PDF", data=bytes(pdf_file), file_name=f"{cod_pratica}.pdf")
         except Exception as e:
             st.error(f"Errore generazione PDF: {e}")
             
