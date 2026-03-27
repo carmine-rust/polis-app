@@ -26,6 +26,13 @@ def reset_form():
         if key not in ['seq']: del st.session_state[key]
     st.rerun()
 
+# --- LOGICA ARROTONDAMENTO DISPONIBILE ---
+def calcola_disponibile(p, tensione):
+    if tensione == "BT" and p > 0:
+        # Arrotondamento all'intero superiore della potenza con franchigia 10%
+        return math.ceil(p * 1.1)
+    return p
+
 # --- FUNZIONE PDF ---
 def genera_pdf_polis(d):
     pdf = FPDF()
@@ -34,25 +41,24 @@ def genera_pdf_polis(d):
     try: pdf.image(LOGO_PATH, 10, 8, 33)
     except:
         pdf.set_xy(10, 15); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, "POLIS ENERGIA SRL")
+        pdf.cell(0, 10, "PolisEnergia SRL")
     
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 8)
     pdf.cell(0, 5, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA)", align='R', ln=1)
-    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 5, "P.IVA 05050950657 - assistenza@polisenergia.it", align='R', ln=1)
+    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 5, "P.IVA 05050950657 - info@polisenergia.it", align='R', ln=1)
     
     pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", ln=1)
     pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"Data: {d['Data']}", ln=1)
     
-    pdf.ln(5); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(0, 6, f"CLIENTE: {d['Cliente']}", ln=1)
+    pdf.ln(5); pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, f"SPETT.LE CLIENTE: {d['Cliente']}", ln=1)
     pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"Indirizzo: {d['Indirizzo']}", ln=1); pdf.cell(0, 6, f"POD: {d['POD']}", ln=1)
     
     pdf.ln(10); pdf.set_fill_color(0, 119, 182); pdf.set_text_color(255, 255, 255)
-    pdf.cell(140, 10, " DESCRIZIONE", 1, 0, 'L', True); pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
+    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True); pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
     
     pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
-    pdf.cell(140, 8, f" Quota Tecnica TIC (Calcolata su Potenza Disponibile Arrotondata)", 1); pdf.cell(50, 8, f"{d['Quota_Tecnica']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, f" Quota Tecnica ", 1); pdf.cell(50, 8, f"{d['Quota_Tecnica']:.2f} EUR", 1, 1, 'R')
     if d['c_dist'] > 0: pdf.cell(140, 8, " Quota Distanza / Oneri di Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 8, " Oneri Amministrativi", 1); pdf.cell(50, 8, f"{ONERI_ISTRUTTORIA:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['Gestione_Polis']:.2f} EUR", 1, 1, 'R')
@@ -65,13 +71,12 @@ def genera_pdf_polis(d):
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['Totale']:.2f} EUR", 1, 1, 'R', True)
     
-    pdf.ln(15); pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, "COORDINATE BANCARIE:", ln=1)
+    pdf.ln(15); pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", ln=1)
     pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"IBAN: {IBAN_POLIS}", ln=1)
-    # CAUSALE DINAMICA SOTTO IBAN
     pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", ln=1)
     
-    pdf.ln(25); pdf.cell(100, 10, "Firma PolisEnergia srl", ln=0); pdf.cell(90, 10, "Firma Accettazione Cliente", ln=1, align='R')
-    pdf.line(10, 195, 70, 195); pdf.line(140, 195, 200, 195)
+    pdf.ln(90);pdf.cell(90, 10, "Firma Accettazione Cliente", ln=1, align='R')
+    pdf.line(10, 195, 90, 195); pdf.line(140, 195, 200, 195)
     return bytes(pdf.output())
 
 # --- INTERFACCIA ---
@@ -117,16 +122,10 @@ elif "Spostamento" in pratica:
     s_dist = st.radio("Distanza", ["Entro 10 mt", "Oltre 10 mt"], horizontal=True, key="k_sdist")
     if "Oltre" in s_dist: c_dist = st.number_input("Costo (€)", 0.0, key="k_sdist_c")
 
-# --- MOTORE DI CALCOLO CON ARROTONDAMENTO PER ECCESSO (CEIL) ---
+# --- MOTORE DI CALCOLO UNIFICATO ---
 if t_new == "MT": tar = TIC_MT
 elif tipo_ut == "Domestico" and p_new <= 6: tar = TIC_DOMESTICO_LE6
 else: tar = TIC_ALTRI_USI_BT
-
-# Logica Arrotondamento franchigia 10%
-def calcola_disponibile(p, tensione):
-    if tensione == "BT":
-        return math.ceil(p * 1.1) # ES: 4.5 * 1.1 = 4.95 -> 5
-    return p
 
 if "Spostamento" in pratica:
     c_tec = SPOSTAMENTO_10MT if "Entro" in s_dist else 0.0
@@ -147,9 +146,16 @@ iva_e = imp * (iva_p/100)
 bollo = 2.0 if (regime == "Esente" and imp > 77.47) else 0.0
 tot = (imp if "P.A." in regime else imp + iva_e) + bollo
 
-st.subheader(f"Totale: {tot:.2f} €")
+# --- ANTEPRIMA VISIVA (RIPRISTINATA) ---
+st.subheader("📊 Anteprima Calcoli")
+df_preview = pd.DataFrame({
+    "Voce di Costo": ["Quota Tecnica (TIC)", "Quota Distanza", "Oneri Amministrativi", "Gestione PolisEnergia", "IVA", "Imposta di Bollo", "**TOTALE**"],
+    "Importo (€)": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{ONERI_ISTRUTTORIA:.2f}", f"{c_gest:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{tot:.2f}**"]
+})
+st.table(df_preview)
 
-if st.button("📁 GENERA PREVENTIVO", type="primary", use_container_width=True):
+# --- SALVATAGGIO E PDF ---
+if st.button("📁 CONFERMA E GENERA PREVENTIVO", type="primary", use_container_width=True):
     if nome and pod:
         cod = f"PREV2026{st.session_state.seq:04d}"
         
@@ -168,14 +174,16 @@ if st.button("📁 GENERA PREVENTIVO", type="primary", use_container_width=True)
             'Totale': round(tot, 2),
             'iva_perc': iva_p,
             'bollo': bollo,
-            'c_dist': c_dist
+            'c_dist': round(c_dist, 2)
         }
         
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
-            df_esistente = conn.read()
-            df_nuovo = pd.concat([df_esistente, pd.DataFrame([{k: v for k, v in dati_finali.items() if k not in ['iva_perc', 'bollo', 'c_dist', 'Indirizzo']}])], ignore_index=True)
-            conn.update(data=df_nuovo)
+            df_old = conn.read()
+            # Puliamo i dati per Excel (evitiamo campi non necessari al DB)
+            dati_db = {k: v for k, v in dati_finali.items() if k not in ['iva_perc', 'bollo', 'c_dist', 'Indirizzo']}
+            df_new = pd.concat([df_old, pd.DataFrame([dati_db])], ignore_index=True)
+            conn.update(data=df_new)
         except: pass
         
         st.session_state.pdf_pronto = genera_pdf_polis(dati_finali)
@@ -184,4 +192,5 @@ if st.button("📁 GENERA PREVENTIVO", type="primary", use_container_width=True)
         st.rerun()
 
 if st.session_state.pdf_pronto:
+    st.divider()
     st.download_button(f"📥 SCARICA {st.session_state.ultimo_codice}", st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf", use_container_width=True)
