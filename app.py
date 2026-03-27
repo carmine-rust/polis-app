@@ -80,7 +80,7 @@ def genera_pdf(d, cod_pratica):
     pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['totale']:.2f} EUR", 1, 1, 'R', True)
     
     pdf.ln(10); pdf.set_font("Helvetica", "I", 8)
-    pdf.multi_cell(190, 4, f"Causale: {st.session_state.codice_causale}\nIBAN:PolisEnergia srl - IT80P0103015200000007044056 - Monte dei Paschi di Siena")
+    pdf.multi_cell(110, 4, f"Causale: {cod_pratica}\nIBAN:PolisEnergia srl - IT80P0103015200000007044056 - Monte dei Paschi di Siena")
     pdf.ln (70)
     curr_y = pdf.get_y()
     pdf.set_xy(130, curr_y)
@@ -197,24 +197,9 @@ if submit:
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
         cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
+        st.session_state.ultimo_codice = cod_pratica
         st.session_state.seq = (st.session_state.seq + 1) % 10 # Ciclo 0-9
-       
-        # --- SALVATAGGIO CLOUD ---
-        try:
-            df_cloud = conn.read()
-            nuovo_dato = pd.DataFrame([{
-                "Data": datetime.now().strftime("%d/%m/%Y"),
-                "Codice": cod_pratica,
-                "Cliente": nome,
-                "POD": pod,
-                "Pratica": pratica,
-                "Totale": round(tot, 2)
-            }])
-            df_finale = pd.concat([df_cloud, nuovo_dato], ignore_index=True)
-            conn.update(data=df_finale)
-            st.success(f"✅ Archiviato su Google Sheets con codice {cod_pratica}")
-        except:
-            st.warning("⚠️ Salvataggio Cloud non riuscito. Verifica la configurazione Secrets.")
+        
         st.subheader("🔍 Anteprima Riepilogo")
         preview = {
             "Voce": ["Potenza", "Distanza", "Istruttoria", "Gestione Polis", "Imponibile", "IVA", "Bollo", "TOTALE"],
@@ -222,7 +207,20 @@ if submit:
         }
         st.table(pd.DataFrame(preview))
         
-        pdf_file = genera_pdf(dati_pdf, cod_pratica)
-        st.download_button("📥 SCARICA PREVENTIVO PDF", data=bytes(pdf_file), file_name=f"Preventivo_{st.session_state.codice_causale}_{clean_filename(nome)}.pdf", use_container_width=True)
+    # Generazione PDF (Questa è la riga che dava errore!)
+        try:
+            pdf_file = genera_pdf(dati, cod_pratica)
+            st.success(f"✅ Preventivo {cod_pratica} creato!")
+            st.download_button("📥 SCARICA PDF", data=bytes(pdf_file), file_name=f"{cod_pratica}.pdf", use_container_width=True)
+            
+            # Salvataggio Cloud (opzionale se hai configurato GSheets)
+            try:
+                df_cloud = conn.read()
+                nuovo = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m/%Y"), "Codice": cod_pratica, "Cliente": nome, "Totale": round(tot, 2)}])
+                conn.update(data=pd.concat([df_cloud, nuovo], ignore_index=True))
+            except: pass
+            
+        except Exception as e:
+            st.error(f"Errore tecnico nel PDF: {e}")
     else:
-        st.error("Inserire Ragione Sociale e Indirizzo.")
+        st.error("Inserisci Ragione Sociale e Indirizzo.")
