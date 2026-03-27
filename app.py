@@ -173,7 +173,7 @@ if submit:
             'c_gest': c_gest, 'p_att': p_att, 'p_new': p_new, 'f_new': f_new,
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
-        cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
+        cod_pratica = f"BA{int(tot)}{st.session_state.ultimo_codice}"
         try:
             pdf_generato = genera_pdf(dati, cod_pratica)
             st.session_state.pdf_pronto = pdf_generato
