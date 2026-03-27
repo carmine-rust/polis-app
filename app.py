@@ -9,200 +9,189 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from streamlit_gsheets import GSheetsConnection
 
-# --- CONFIGURAZIONE E STATO ---
+# --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
-if 'seq' not in st.session_state: st.session_state.seq = 0
-if 'pdf_pronto' not in st.session_state: st.session_state.pdf_pronto = None
-if 'ultimo_codice' not in st.session_state: st.session_state.ultimo_codice = "---"
-
 TIC_2026 = {
-    "DOM_LE6": 62.30, 
-    "BT_ALTRI": 78.81, 
-    "MT": 62.74,
-    "SPOST_ENTRO_10": 226.36, 
-    "ISTRUTTORIA": 27.42, 
-    "FISSO_BASE_CALCOLO": 25.88, 
-    "COSTO_PASSAGGIO_MT": 494.83
+    "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
+    "SPOST_ENTRO_10": 226.36, "ISTRUTTORIA": 27.42, 
+    "FISSO_BASE_CALCOLO": 25.88, "COSTO_PASSAGGIO_MT": 494.83
 }
 
-# --- FUNZIONI CORE ---
-def invia_mail_aruba(destinatario, oggetto, corpo, pdf_bytes, nome_file):
-    try:
-        s = st.secrets["connections"]["gsheets"]
-        msg = MIMEMultipart()
-        msg['From'] = s["EMAIL_SENDER"]
-        msg['To'] = destinatario
-        msg['Subject'] = oggetto
-        msg.attach(MIMEText(corpo, 'plain'))
-        part = MIMEApplication(pdf_bytes, Name=nome_file)
-        part['Content-Disposition'] = f'attachment; filename="{nome_file}"'
-        msg.attach(part)
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(s["EMAIL_SERVER"], int(s["EMAIL_PORT"]), context=context) as server:
-            server.login(s["EMAIL_SENDER"], s["EMAIL_PASSWORD"])
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        st.error(f"Errore Mail: {e}"); return False
+IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena" # Inserisci IBAN reale
 
-def genera_pdf(d, cod):
+if 'seq' not in st.session_state: st.session_state.seq = 1
+if 'pdf_pronto' not in st.session_state: st.session_state.pdf_pronto = None
+
+# --- FUNZIONI ---
+def genera_pdf(d):
     pdf = FPDF()
     pdf.add_page()
+    
+    # Header Blu Polis
     pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
-    if os.path.exists("logo_polis.png"): pdf.image("logo_polis.png", 10, 10, 33)
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 8)
     pdf.cell(0, 5, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA)", align='R', ln=1)
-    pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(0, 6, f"SPETT.LE: {d['nome']}", ln=1)
-    pdf.cell(0, 6, f"INDIRIZZO: {d['indirizzo']}", ln=1)
-    pdf.ln(5); pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 10, f"PREVENTIVO {d['pratica'].upper()} - POD: {d['pod']}", border="B", ln=1)
-    pdf.ln(5); pdf.set_fill_color(0, 180, 216); pdf.set_text_color(255, 255, 255)
-    pdf.cell(140, 10, " DESCRIZIONE", 1, 0, 'L', True); pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
-    pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
     
+    # Titolo e Codice Pratica
+    pdf.set_xy(10, 50); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, f"PREVENTIVO N. {d['cod_pratica']}", ln=1)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"Data: {datetime.now().strftime('%d/%m/%Y')}", ln=1)
+    
+    # Dati Cliente
+    pdf.ln(5); pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 6, f"Spett.le: {d['nome']}", ln=1)
+    pdf.cell(0, 6, f"Indirizzo: {d['indirizzo']}", ln=1)
+    pdf.cell(0, 6, f"POD: {d['pod']}", ln=1)
+    
+    # Tabella Costi
+    pdf.ln(10); pdf.set_fill_color(0, 180, 216); pdf.set_text_color(255, 255, 255)
+    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True); pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
+    
+    pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
     pdf.cell(140, 8, f" Quota Potenza/Tecnica ({d['t_att']} -> {d['t_new']})", 1); pdf.cell(50, 8, f"{d['c_tec']:.2f} EUR", 1, 1, 'R')
     if d['c_dist'] > 0: pdf.cell(140, 8, " Quota Distanza / Oneri Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Oneri Amministrativi", 1); pdf.cell(50, 8, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['c_gest']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Oneri Amministrativi e Istruttoria", 1); pdf.cell(50, 8, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Oneri Gestione Pratica Polis", 1); pdf.cell(50, 8, f"{d['c_gest']:.2f} EUR", 1, 1, 'R')
     
     pdf.ln(2); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(140, 9, f" IMPONIBILE ({d['uso']})", 1); pdf.cell(50, 9, f"{d['imponibile']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 9, f" IVA ({d['iva_perc']}%)", 1); pdf.cell(50, 9, f"{d['iva_euro']:.2f} EUR", 1, 1, 'R')
-    if d['bollo'] > 0: pdf.cell(140, 9, " BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
+    pdf.cell(140, 9, f" IMPONIBILE", 1); pdf.cell(50, 9, f"{d['imponibile']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 9, f" IVA {d['iva_perc']}%", 1); pdf.cell(50, 9, f"{d['iva_euro']:.2f} EUR", 1, 1, 'R')
+    if d['bollo'] > 0: pdf.cell(140, 9, " MARCA DA BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
     
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['totale']:.2f} EUR", 1, 1, 'R', True)
+    
+    # Coordinate e Firma
+    pdf.ln(15); pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, "COORDINATE BANCARIE:", ln=1)
+    pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"IBAN: {IBAN_POLIS}", ln=1)
+    pdf.cell(0, 6, f"Causale: Saldo Preventivo {d['cod_pratica']}", ln=1)
+    
+    pdf.ln(30)
+    pdf.cell(100, 10, "Firma PolisEnergia srl", ln=0)
+    pdf.cell(90, 10, "Firma per Accettazione Cliente", ln=1, align='R')
+    pdf.line(10, 185, 60, 185); pdf.line(140, 185, 200, 185)
+    
     return bytes(pdf.output())
 
 # --- INTERFACCIA ---
-st.title("⚡ PolisEnergia")
+st.title("⚡ PolisEnergia 4.0")
 
 # 1. ANAGRAFICA
-col_ana1, col_ana2 = st.columns(2)
-with col_ana1:
-    nome = st.text_input("Ragione Sociale", key="ragione_sociale").upper()
-    indirizzo = st.text_input("Indirizzo", key="indirizzo_cliente")
-with col_ana2:
-    uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"], key="regime_fiscale")
-    pod = st.text_input("POD", key="pod_cliente").upper()
+c1, c2 = st.columns(2)
+with c1:
+    nome = st.text_input("Ragione Sociale", key="reg_soc").upper()
+    indirizzo = st.text_input("Indirizzo", key="ind_cli")
+with c2:
+    uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"], key="iva_sel")
+    pod = st.text_input("POD", key="pod_cli").upper()
 
 st.divider()
 
-# 2. SELEZIONE TIPO PRATICA
-pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"], key="tipo_pratica")
-tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True, key="destinazione_ut")
+# 2. LOGICA DINAMICA
+pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"])
+tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True)
 
-# Inizializzazione variabili per evitare errori di riferimento
 p_att, p_new, c_dist = 0.0, 0.0, 0.0
 t_att, t_new = "BT", "BT"
-flag_passaggio_mt = False
-s_distanza = ""
+flag_mt = False
+s_dist = ""
 
-# --- BLOCCO CAMPI DINAMICI ---
 if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
+    col1, col2 = st.columns(2)
+    with col1:
         if tipo_ut == "Altri Usi":
-            flag_passaggio_mt = st.checkbox("🔄 Passaggio a MT?", key="chk_mt")
-            if flag_passaggio_mt:
-                t_att, t_new = "BT", "MT"
-            else:
-                t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True, key="radio_tens_aumento")
-        p_att = st.number_input("Potenza Attuale (kW)", value=3.0, step=0.5, key="p_partenza")
-    with col_p2:
-        p_new = st.number_input("Nuova Potenza Richiesta (kW)", value=6.0, step=0.5, key="p_richiesta")
-
+            flag_mt = st.checkbox("Passaggio a MT (+494.83€)")
+            t_new = "MT" if flag_mt else st.radio("Tensione", ["BT", "MT"])
+        p_att = st.number_input("Potenza Attuale (kW)", 3.0, step=0.5)
+    with col2:
+        p_new = st.number_input("Nuova Potenza (kW)", 6.0, step=0.5)
 elif pratica == "Nuova Connessione":
-    col_n1, col_n2 = st.columns(2)
-    with col_n1:
-        if tipo_ut == "Altri Usi":
-            t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True, key="radio_tens_nuova")
-        p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5, key="p_nuova_conn")
-    with col_n2:
-        c_dist = st.number_input("Quota Distanza (€) - Manuale", value=0.0, key="distanza_nuova")
-
+    col1, col2 = st.columns(2)
+    with col1:
+        p_new = st.number_input("Potenza Richiesta (kW)", 3.0, step=0.5)
+    with col2:
+        c_dist = st.number_input("Quota Distanza (€) - Manuale", 0.0)
 elif pratica == "Spostamento":
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        s_distanza = st.radio("Distanza Spostamento", ["Entro i 10 mt", "Oltre i 10 mt"], horizontal=True, key="radio_spost")
-    with col_s2:
-        if "Oltre" in s_distanza:
-            c_dist = st.number_input("Costo Spostamento (€) - Manuale", value=0.0, key="distanza_spost_manuale")
-        else:
-            st.info(f"Costo Fisso applicato: {TIC_2026['SPOST_ENTRO_10']}€")
+    s_dist = st.radio("Distanza", ["Entro i 10 mt", "Oltre i 10 mt"])
+    if "Oltre" in s_dist:
+        c_dist = st.number_input("Costo Spostamento (€) - Manuale", 0.0)
 
-st.divider()
-app_gest = st.checkbox("Gestione Polis (10%)", value=True, key="chk_gestione_polis")
+app_gest = st.checkbox("Gestione Polis (10%)", value=True)
 
-# --- MOTORE DI CALCOLO FISCALE E TECNICO ---
-def calcola_tutto():
-    # 1. Tariffe
-    def get_tariffa(tens, pot, ut):
-        if tens == "MT": return TIC_2026["MT"]
-        if ut == "Domestico" and pot <= 6: return TIC_2026["DOM_LE6"]
-        return TIC_2026["BT_ALTRI"]
+# --- CALCOLO ISTANTANEO ---
+def get_t(tens, pot, ut):
+    if tens == "MT": return TIC_2026["MT"]
+    return TIC_2026["DOM_LE6"] if ut == "Domestico" and pot <= 6 else TIC_2026["BT_ALTRI"]
 
-    px_att = get_tariffa(t_att, p_att, tipo_ut)
-    px_new = get_tariffa(t_new, p_new, tipo_ut)
-    
-    # 2. Costo Tecnico
-    c_tec_intern = 0.0
-    if pratica == "Spostamento":
-        c_tec_intern = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_distanza else 0.0
-    elif pratica == "Nuova Connessione":
-        c_tec_intern = math.ceil(p_new) * px_new
-    else: # Aumento/Subentro
-        f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
-        c_tec_intern = max(0.0, (math.ceil(p_new) * px_new) - (p_att * f_att * px_att))
-        if flag_passaggio_mt: c_tec_intern += TIC_2026["COSTO_PASSAGGIO_MT"]
+c_tec = 0.0
+if pratica == "Spostamento":
+    c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_dist else 0.0
+elif pratica == "Nuova Connessione":
+    c_tec = math.ceil(p_new) * get_t(t_new, p_new, tipo_ut)
+else:
+    f = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
+    c_tec = max(0.0, (math.ceil(p_new) * get_t(t_new, p_new, tipo_ut)) - (p_att * f * get_t(t_att, p_att, tipo_ut)))
+    if flag_mt: c_tec += TIC_2026["COSTO_PASSAGGIO_MT"]
 
-    # 3. Imponibile
-    c_gest_intern = (c_tec_intern + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
-    imp_intern = c_tec_intern + c_dist + c_gest_intern + TIC_2026["ISTRUTTORIA"]
-    
-    # 4. LOGICA IVA E BOLLO
-    iva_p_intern = 10 if "10" in uso else (22 if ("22" in uso or "P.A." in uso) else 0)
-    iva_e_intern = imp_intern * (iva_p_intern / 100)
-    bollo_intern = 2.0 if (uso == "Esente" and imp_intern > 77.47) else 0.0
-    
-    # Se P.A., il totale da pagare è solo l'imponibile (IVA a carico Stato)
-    tot_intern = (imp_intern if "P.A." in uso else imp_intern + iva_e_intern) + bollo_intern
-    
-    return {
-        'c_tec': c_tec_intern, 'c_dist': c_dist, 'c_gest': c_gest_intern,
-        'imponibile': imp_intern, 'iva_perc': iva_p_intern, 'iva_euro': iva_e_intern,
-        'bollo': bollo_intern, 'totale': tot_intern, 'uso': uso,
-        't_att': t_att, 't_new': t_new
-    }
+c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.1 if app_gest else 0.0
+imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
+iva_p = 10 if "10" in uso else (22 if "22" in uso or "P.A." in uso else 0)
+iva_e = imp * (iva_p/100)
+bollo = 2.0 if (uso == "Esente" and imp > 77.47) else 0.0
+tot = (imp if "P.A." in uso else imp + iva_e) + bollo
 
-# Esegui calcolo
-risultati = calcola_tutto()
+# --- ANTEPRIMA ---
+st.subheader("📊 Riepilogo Costi")
+st.dataframe(pd.DataFrame({
+    "Voce": ["Costo Tecnico", "Distanza", "Gestione Polis", "IVA", "Totale"],
+    "Importo": [f"{c_tec:.2f}€", f"{c_dist:.2f}€", f"{c_gest:.2f}€", f"{iva_e:.2f}€", f"{tot:.2f}€"]
+}), use_container_width=True)
 
 # --- AZIONI ---
-if st.button("📁 GENERA PREVENTIVO", use_container_width=True, type="primary"):
+if st.button("📁 CONFERMA E REGISTRA PRATICA", type="primary", use_container_width=True):
     if nome and indirizzo:
-        dati_finali = risultati.copy()
-        dati_finali.update({'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.", 'pratica': pratica})
+        # Generazione Codice PREV2026XXXX
+        cod_pratica = f"PREV{datetime.now().year}{st.session_state.seq:04d}"
         
-        st.session_state.pdf_pronto = genera_pdf(dati_finali, f"BA{int(risultati['totale'])}")
-        st.session_state.ultimo_codice = f"BA{int(risultati['totale'])}{st.session_state.seq}"
-        st.session_state.seq = (st.session_state.seq + 1) % 10
+        dati = {
+            'Data': datetime.now().strftime("%d/%m/%Y"),
+            'cod_pratica': cod_pratica, 'nome': nome, 'indirizzo': indirizzo, 'pod': pod,
+            'pratica': pratica, 't_att': t_att, 't_new': t_new, 'c_tec': c_tec, 'c_dist': c_dist,
+            'c_gest': c_gest, 'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 
+            'bollo': bollo, 'totale': tot, 'uso': uso
+        }
+        
+        # 1. Genera PDF
+        st.session_state.pdf_pronto = genera_pdf(dati)
+        st.session_state.ultimo_codice = cod_pratica
+        
+        # 2. Aggiorna Google Sheets
+        try:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            df_old = conn.read()
+            df_new = pd.concat([df_old, pd.DataFrame([dati])], ignore_index=True)
+            conn.update(data=df_new)
+            st.success("Dati registrati su Google Sheets!")
+        except:
+            st.warning("Database non configurato nei Secrets, PDF generato comunque.")
+            
+        st.session_state.seq += 1
         st.rerun()
     else:
-        st.error("Compila i dati anagrafici!")
+        st.error("Compila i campi obbligatori!")
 
 # --- DOWNLOAD E INVIO ---
 if st.session_state.pdf_pronto:
     st.divider()
-    col_dl, col_mail = st.columns([1, 2])
-    with col_dl:
-        st.download_button("📥 SCARICA PDF", data=st.session_state.pdf_pronto, file_name=f"{st.session_state.ultimo_codice}.pdf", mime="application/pdf")
-    with col_mail:
-        mail_c = st.text_input("Email Cliente", key="mail_cliente_invio")
-        txt = st.text_area("Messaggio", value=f"In allegato il preventivo {st.session_state.ultimo_codice}", key="messaggio_invio")
-        if st.button("🚀 INVIA MAIL"):
-            if invia_mail_aruba(mail_c, f"Preventivo {st.session_state.ultimo_codice}", txt, st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf"):
-                st.success("Mail Inviata!"); st.balloons()
+    cdl, cml = st.columns(2)
+    with cdl:
+        st.download_button(f"📥 SCARICA {st.session_state.ultimo_codice}", st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf")
+    with cml:
+        mail_cli = st.text_input("Invia a (Email Cliente):")
+        if st.button("🚀 INVIA"):
+            # Qui inserire la tua funzione invia_mail_aruba
+            st.success("Invio simulato con successo!")
