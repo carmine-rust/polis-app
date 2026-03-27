@@ -13,11 +13,12 @@ ONERI_ISTRUTTORIA = 27.42
 SPOSTAMENTO_10MT = 226.36
 FISSO_BASE_CALCOLO = 25.88
 COSTO_PASSAGGIO_MT = 494.83
-IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena"
+IBAN_POLIS = "IT 00 X 00000 00000 000000000000"
 LOGO_PATH = "logo_polis.png"
 
 st.set_page_config(page_title="PolisEnergia - Preventivatore", layout="wide")
 
+# --- STATO E RESET ---
 if 'seq' not in st.session_state: st.session_state.seq = 1
 if 'pdf_pronto' not in st.session_state: st.session_state.pdf_pronto = None
 
@@ -26,14 +27,17 @@ def reset_form():
         if key not in ['seq']: del st.session_state[key]
     st.rerun()
 
-# --- LOGICA ARROTONDAMENTO DISPONIBILE ---
-def calcola_disponibile(p, tensione):
-    if tensione == "BT" and p > 0:
-        # Arrotondamento all'intero superiore della potenza con franchigia 10%
-        return math.ceil(p * 1.1)
-    return p
+# --- FUNZIONE LOGICA POTENZA (ES. 4.5 -> 5 | 3 -> 3.3) ---
+def calcola_quota_potenza(p_attuale, p_nuova, tensione):
+    if tensione == "BT":
+        # Nuovo: 4.5 * 1.1 = 4.95 -> Arrotonda a intero superiore (5)
+        disp_new = math.ceil(p_nuova * 1.1)
+        # Attuale: 3 * 1.1 = 3.3 (senza arrotondamento all'intero, come da tuo esempio)
+        disp_att = p_attuale * 1.1
+        return max(0, disp_new - disp_att)
+    return max(0, p_nuova - p_attuale)
 
-# --- FUNZIONE PDF ---
+# --- PDF GENERATOR ---
 def genera_pdf_polis(d):
     pdf = FPDF()
     pdf.add_page()
@@ -41,11 +45,11 @@ def genera_pdf_polis(d):
     try: pdf.image(LOGO_PATH, 10, 8, 33)
     except:
         pdf.set_xy(10, 15); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, "PolisEnergia SRL")
+        pdf.cell(0, 10, "POLIS ENERGIA SRL")
     
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 8)
     pdf.cell(0, 5, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA)", align='R', ln=1)
-    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 5, "P.IVA 05050950657 - info@polisenergia.it", align='R', ln=1)
+    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 5, "P.IVA 05862440651 - info@polisenergia.it", align='R', ln=1)
     
     pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", ln=1)
@@ -58,25 +62,25 @@ def genera_pdf_polis(d):
     pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True); pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
     
     pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
-    pdf.cell(140, 8, f" Quota Tecnica ", 1); pdf.cell(50, 8, f"{d['Quota_Tecnica']:.2f} EUR", 1, 1, 'R')
-    if d['c_dist'] > 0: pdf.cell(140, 8, " Quota Distanza / Oneri di Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Oneri Amministrativi", 1); pdf.cell(50, 8, f"{ONERI_ISTRUTTORIA:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['Gestione_Polis']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Quota Tecnica TIC (Calcolo Potenza Disponibile)", 1); pdf.cell(50, 8, f"{d['Quota_Tecnica']:.2f} EUR", 1, 1, 'R')
+    if d['c_dist'] > 0: pdf.cell(140, 8, " Quota Distanza / Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Oneri Amministrativi e Istruttoria", 1); pdf.cell(50, 8, f"{ONERI_ISTRUTTORIA:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Competenze Professionali Gestione", 1); pdf.cell(50, 8, f"{d['Gestione_Polis']:.2f} EUR", 1, 1, 'R')
     
     pdf.ln(2); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(140, 9, " TOTALE IMPONIBILE", 1); pdf.cell(50, 9, f"{d['Imponibile']:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 9, f" IVA APPLICATA ({d['iva_perc']}%)", 1); pdf.cell(50, 9, f"{d['IVA_Euro']:.2f} EUR", 1, 1, 'R')
-    if d['bollo'] > 0: pdf.cell(140, 9, " IMPOSTA DI BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
+    if d.get('bollo', 0) > 0: pdf.cell(140, 9, " IMPOSTA DI BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
     
     pdf.set_fill_color(240, 240, 240)
-    pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['Totale']:.2f} EUR", 1, 1, 'R', True)
+    pdf.cell(140, 11, " TOTALE DA CORRISPONDERE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['Totale']:.2f} EUR", 1, 1, 'R', True)
     
     pdf.ln(15); pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", ln=1)
     pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"IBAN: {IBAN_POLIS}", ln=1)
     pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", ln=1)
     
-    pdf.ln(90);pdf.cell(90, 10, "Firma Accettazione Cliente", ln=1, align='R')
-    pdf.line(10, 195, 90, 195); pdf.line(140, 195, 200, 195)
+    pdf.ln(25); pdf.cell(100, 10, "Firma PolisEnergia srl", ln=0); pdf.cell(90, 10, "Firma Accettazione Cliente", ln=1, align='R')
+    pdf.line(10, 205, 70, 205); pdf.line(140, 205, 200, 205)
     return bytes(pdf.output())
 
 # --- INTERFACCIA ---
@@ -107,13 +111,10 @@ if "Potenza" in pratica or "Subentro" in pratica:
     with col1:
         if tipo_ut == "Altri Usi":
             flag_mt = st.checkbox("🔄 Passaggio a MT?", key="k_mt")
-            if flag_mt: t_att, t_new = "BT", "MT"
-            else:
-                t_att = st.radio("Tensione Attuale", ["BT", "MT"], horizontal=True, key="k_ta")
-                t_new = st.radio("Nuova Tensione", ["BT", "MT"], horizontal=True, key="k_tn")
-        p_att = st.number_input("Potenza Attuale (kW)", value=2.0, step=0.5, key="k_pa")
+            t_new = "MT" if flag_mt else "BT"
+        p_att = st.number_input("Potenza Attuale (kW)", value=3.0, step=0.5, key="k_pa")
     with col2:
-        p_new = st.number_input("Nuova Potenza (kW)", value=3.0, step=0.5, key="k_pn")
+        p_new = st.number_input("Nuova Potenza (kW)", value=4.5, step=0.5, key="k_pn")
 elif "Nuova" in pratica:
     c1, c2 = st.columns(2)
     p_new = c1.number_input("Potenza (kW)", value=3.0, step=0.5, key="k_pnc")
@@ -122,7 +123,7 @@ elif "Spostamento" in pratica:
     s_dist = st.radio("Distanza", ["Entro 10 mt", "Oltre 10 mt"], horizontal=True, key="k_sdist")
     if "Oltre" in s_dist: c_dist = st.number_input("Costo (€)", 0.0, key="k_sdist_c")
 
-# --- MOTORE DI CALCOLO UNIFICATO ---
+# --- CALCOLO LOGICA RICHIESTA ---
 if t_new == "MT": tar = TIC_MT
 elif tipo_ut == "Domestico" and p_new <= 6: tar = TIC_DOMESTICO_LE6
 else: tar = TIC_ALTRI_USI_BT
@@ -130,12 +131,12 @@ else: tar = TIC_ALTRI_USI_BT
 if "Spostamento" in pratica:
     c_tec = SPOSTAMENTO_10MT if "Entro" in s_dist else 0.0
 elif "Nuova" in pratica:
-    disp_new = calcola_disponibile(p_new, t_new)
-    c_tec = disp_new * tar
+    delta = math.ceil(p_new * 1.1) if t_new == "BT" else p_new
+    c_tec = delta * tar
 else:
-    disp_new = calcola_disponibile(p_new, t_new)
-    disp_att = calcola_disponibile(p_att, t_att)
-    c_tec = (disp_new - disp_att) * tar
+    # LA TUA LOGICA: (CEIL(P_NEW * 1.1) - (P_ATT * 1.1))
+    delta = calcola_quota_potenza(p_att, p_new, t_new)
+    c_tec = delta * tar
     if flag_mt: c_tec += COSTO_PASSAGGIO_MT
 
 app_gest = st.checkbox("Gestione Polis (10%)", value=True, key="k_gest_chk")
@@ -146,51 +147,33 @@ iva_e = imp * (iva_p/100)
 bollo = 2.0 if (regime == "Esente" and imp > 77.47) else 0.0
 tot = (imp if "P.A." in regime else imp + iva_e) + bollo
 
-# --- ANTEPRIMA VISIVA (RIPRISTINATA) ---
-st.subheader("📊 Anteprima Calcoli")
-df_preview = pd.DataFrame({
-    "Voce di Costo": ["Quota Tecnica (TIC)", "Quota Distanza", "Oneri Amministrativi", "Gestione PolisEnergia", "IVA", "Imposta di Bollo", "**TOTALE**"],
-    "Importo (€)": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{ONERI_ISTRUTTORIA:.2f}", f"{c_gest:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{tot:.2f}**"]
-})
-st.table(df_preview)
+# --- ANTEPRIMA ---
+st.table(pd.DataFrame({
+    "Voce": ["Quota TIC", "Distanza", "Oneri", "Gestione", "IVA", "Bollo", "TOTALE"],
+    "Euro": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{ONERI_ISTRUTTORIA:.2f}", f"{c_gest:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"{tot:.2f}"]
+}))
 
-# --- SALVATAGGIO E PDF ---
-if st.button("📁 CONFERMA E GENERA PREVENTIVO", type="primary", use_container_width=True):
+if st.button("📁 CONFERMA E GENERA", type="primary", use_container_width=True):
     if nome and pod:
         cod = f"PREV2026{st.session_state.seq:04d}"
-        
-        dati_finali = {
-            'Data': datetime.now().strftime("%d/%m/%Y"),
-            'Codice': cod,
-            'Cliente': nome,
-            'Indirizzo': indirizzo,
-            'POD': pod,
-            'Potenza_Att': round(p_att, 2),
-            'Potenza_New': round(p_new, 2),
-            'Quota_Tecnica': round(c_tec, 2),
-            'Gestione_Polis': round(c_gest, 2),
-            'Imponibile': round(imp, 2),
-            'IVA_Euro': round(iva_e, 2),
-            'Totale': round(tot, 2),
-            'iva_perc': iva_p,
-            'bollo': bollo,
-            'c_dist': round(c_dist, 2)
+        dati = {
+            'Data': datetime.now().strftime("%d/%m/%Y"), 'Codice': cod, 'Cliente': nome,
+            'Indirizzo': indirizzo, 'POD': pod, 'Quota_Tecnica': round(c_tec, 2), 
+            'c_dist': round(c_dist, 2), 'Gestione_Polis': round(c_gest, 2), 
+            'Imponibile': round(imp, 2), 'iva_perc': iva_p, 'IVA_Euro': round(iva_e, 2),
+            'bollo': bollo, 'Totale': round(tot, 2)
         }
-        
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
-            df_old = conn.read()
-            # Puliamo i dati per Excel (evitiamo campi non necessari al DB)
-            dati_db = {k: v for k, v in dati_finali.items() if k not in ['iva_perc', 'bollo', 'c_dist', 'Indirizzo']}
-            df_new = pd.concat([df_old, pd.DataFrame([dati_db])], ignore_index=True)
-            conn.update(data=df_new)
+            df = conn.read()
+            df = pd.concat([df, pd.DataFrame([{k:v for k,v in dati.items() if k not in ['iva_perc','bollo','Indirizzo']}])], ignore_index=True)
+            conn.update(data=df)
         except: pass
         
-        st.session_state.pdf_pronto = genera_pdf_polis(dati_finali)
+        st.session_state.pdf_pronto = genera_pdf_polis(dati)
         st.session_state.ultimo_codice = cod
         st.session_state.seq += 1
         st.rerun()
 
 if st.session_state.pdf_pronto:
-    st.divider()
     st.download_button(f"📥 SCARICA {st.session_state.ultimo_codice}", st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf", use_container_width=True)
