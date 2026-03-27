@@ -175,12 +175,12 @@ elif "Spostamento" in pratica:
     is_domestico = st.checkbox("Utenza Domestica") # <--- Fondamentale per la tua regola
     passaggio_mt = st.checkbox("Passaggio a MT")
     if p_new <= 30:
-    v_new = format_franchigia(p_new)
-    v_att = format_franchigia(p_att) if p_att > 0 else 0.0
-    delta = round(v_new - v_att, 1)
+        v_new = format_franchigia(p_new)
+        v_att = format_franchigia(p_att) if p_att > 0 else 0.0
+        delta = round(v_new - v_att, 1)
     
     # Agevolazione Domestico <= 6kW
-    if is_domestico and p_new <= 6:
+    if tipo_ut == "Domestico" and p_new <= 6:
         tar = TIC_DOMESTICO_LE6
     else:
         tar = TIC_ALTRI_USI_BT
