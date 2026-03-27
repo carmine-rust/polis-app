@@ -238,15 +238,15 @@ if submit:
 
         # IL TASTO DI CONFERMA FINALE
     if 'pdf_pronto' in st.session_state:
-    st.divider()
-    st.subheader("✉️ Invia il preventivo via Email")
+        st.divider()
+        st.subheader("✉️ Invia il preventivo via Email")
     
     # Recuperiamo i dati salvati
-    pdf_da_inviare = st.session_state.pdf_pronto
-    cod = st.session_state.codice_per_mail
-    tipo = st.session_state.pratica_per_mail
+        pdf_da_inviare = st.session_state.pdf_pronto
+        cod = st.session_state.codice_per_mail
+        tipo = st.session_state.pratica_per_mail
     
-    col1, col2 = st.columns([1, 2])
+        col1, col2 = st.columns([1, 2])
     with col1:
         dest_mail = st.text_input("Email Destinatario", key="mail_input")
     with col2:
