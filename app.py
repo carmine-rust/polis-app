@@ -109,7 +109,7 @@ with st.form("main_form"):
             t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True) if tipo_ut == "Altri Usi" else "BT"
             p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
             c_dist = st.number_input("Quota Distanza (da inserire a mano) (€)", value=0.0)
-       elif pratica == "Spostamento":
+        elif pratica == "Spostamento":
             s_distanza = st.radio("Distanza Spostamento", ["Entro i 10 mt", "Oltre i 10 mt"], horizontal=True)
             if "Oltre" in s_distanza:
                 c_dist = st.number_input("Costo Spostamento Oltre 10mt (a mano) (€)", value=0.0)
