@@ -75,47 +75,103 @@ def genera_pdf(d, cod):
 st.title("⚡ PolisEnergia")
 st.caption(f"Preventivatore 4.0 | Codice: {st.session_state.ultimo_codice}")
 
-with st.form("main_form"):
+with st.container():
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("📋 1. Anagrafica")
         nome = st.text_input("Ragione Sociale", key="ragione_sociale").upper()
         indirizzo = st.text_input("Indirizzo", key="indirizzo_cliente")
-        uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"])
-        pod = st.text_input("POD", key="pod_cliente").upper()
-        
     with c2:
-        st.subheader("⚙️ 2. Dati Tecnici")
-        pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"])
-        tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True)
-        
-        # Inizializzazione variabili di input
-        p_att, p_new, c_dist = 0.0, 0.0, 0.0
-        t_att, t_new = "BT", "BT"
-        flag_passaggio_mt = False
-        
-        if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
-            if tipo_ut == "Altri Usi":
-                flag_passaggio_mt = st.checkbox("🔄 Passaggio a MT?", key="chk_mt")
-                if flag_passaggio_mt:
-                    t_att, t_new = "BT", "MT"
-                else:
-                    t_att, t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True, key="radio_tens_aumento")
-            cp1, cp2 = st.columns(2)
-            p_att = cp1.number_input("Potenza Partenza (kW)", value=3.0, step=0.5, key="p_partenza")
-            p_new = cp2.number_input("Nuova Potenza (kW)", value=6.0, step=0.5, key="p_richiesta")
-            
-        elif pratica == "Nuova Connessione":
-            if tipo_ut == "Altri Usi":
-                t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True, key="radio_tens_nuova") 
-            p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5, key="p_nuova_conn")
-            c_dist = st.number_input("Quota Distanza (da inserire a mano) (€)", value=0.0, key="distanza_nuova")
-        elif pratica == "Spostamento":
-            s_distanza = st.radio("Distanza Spostamento", ["Entro i 10 mt", "Oltre i 10 mt"], horizontal=True, key="radio_spost")
-            if "Oltre" in s_distanza:
-                c_dist = st.number_input("Costo Spostamento Oltre 10mt (a mano) (€)", value=0.0, key="distanza_spost_manuale")
+        uso = st.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"], key="regime_fiscale")
+        pod = st.text_input("POD", key="pod_cliente").upper()
 
-        app_gest = st.checkbox("Gestione Polis (10%)", value=True)
+st.divider()
+
+# 2. LOGICA DINAMICA FORM
+pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"], key="tipo_pratica")
+tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True, key="destinazione_ut")
+
+# Variabili di default
+p_att, p_new, c_dist = 0.0, 0.0, 0.0
+t_att, t_new = "BT", "BT"
+flag_passaggio_mt = False
+s_distanza = ""
+
+# --- BLOCCO AUMENTO / SUBENTRO ---
+if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
+    col_a1, col_a2 = st.columns(2)
+    with col_a1:
+        if tipo_ut == "Altri Usi":
+            flag_passaggio_mt = st.checkbox("🔄 Passaggio a MT?", key="chk_mt")
+            if flag_passaggio_mt:
+                t_att, t_new = "BT", "MT"
+            else:
+                t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True, key="radio_tens_aumento")
+        p_att = st.number_input("Potenza Attuale (kW)", value=3.0, step=0.5, key="p_partenza")
+    with col_a2:
+        p_new = st.number_input("Potenza Richiesta (kW)", value=6.0, step=0.5, key="p_richiesta")
+
+# --- BLOCCO NUOVA CONNESSIONE ---
+elif pratica == "Nuova Connessione":
+    col_n1, col_n2 = st.columns(2)
+    with col_n1:
+        if tipo_ut == "Altri Usi":
+            t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True, key="radio_tens_nuova")
+        p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5, key="p_nuova_conn")
+    with col_n2:
+        c_dist = st.number_input("Quota Distanza (€) - Inserimento manuale", value=0.0, key="distanza_nuova")
+
+# --- BLOCCO SPOSTAMENTO ---
+elif pratica == "Spostamento":
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        s_distanza = st.radio("Distanza Spostamento", ["Entro i 10 mt", "Oltre i 10 mt"], horizontal=True, key="radio_spost")
+    with col_s2:
+        if "Oltre" in s_distanza:
+            c_dist = st.number_input("Costo Spostamento (€) - Inserimento manuale", value=0.0, key="distanza_spost_manuale")
+        else:
+            st.info(f"Costo Fisso applicato: {TIC_2026['SPOST_FISSO']}€")
+
+st.divider()
+app_gest = st.checkbox("Gestione Polis (10%)", value=True, key="chk_gestione_polis")
+
+# --- CALCOLO E GENERAZIONE ---
+if st.button("📁 GENERA PREVENTIVO", use_container_width=True):
+    if nome and indirizzo:
+        def get_tariffa(tens, pot, ut):
+            if tens == "MT": return TIC_2026["MT"]
+            if ut == "Domestico" and pot <= 6: return TIC_2026["DOM_LE6"]
+            return TIC_2026["BT_ALTRI"]
+
+        px_att = get_tariffa(t_att, p_att, tipo_ut)
+        px_new = get_tariffa(t_new, p_new, tipo_ut)
+        
+        c_tec = 0.0
+        if pratica == "Spostamento":
+            c_tec = TIC_2026["SPOST_FISSO"] if "Entro" in s_distanza else 0.0
+        elif pratica == "Nuova Connessione":
+            c_tec = math.ceil(p_new) * px_new
+        else: # Aumento / Subentro
+            f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
+            c_tec = max(0.0, (math.ceil(p_new) * px_new) - (p_att * f_att * px_att))
+            if flag_passaggio_mt: c_tec += TIC_2026["COSTO_PASSAGGIO_MT"]
+
+        c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
+        imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
+        iva_p = 10 if "10" in uso else (22 if ("22" in uso or "P.A." in uso) else 0)
+        iva_e = imp * (iva_p/100)
+        bollo = 2.0 if (uso == "Esente" and imp > 77.47) else 0.0
+        tot = (imp if "P.A." in uso else imp + iva_e) + bollo
+
+        dati = {
+            'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
+            'pratica': pratica, 't_att': t_att, 't_new': t_new, 'c_tec': c_tec, 'c_dist': c_dist, 
+            'c_gest': c_gest, 'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
+        }
+        
+        st.session_state.pdf_pronto = genera_pdf(dati, f"BA{int(tot)}")
+        st.session_state.ultimo_codice = f"BA{int(tot)}{st.session_state.seq}"
+        st.session_state.seq = (st.session_state.seq + 1) % 10
+        st.rerun()
     
     submit = st.form_submit_button("📁 GENERA PREVENTIVO")
 
