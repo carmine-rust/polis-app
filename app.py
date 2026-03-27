@@ -206,7 +206,7 @@ if submit:
         cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
         st.session_state.ultimo_codice = cod_pratica
         st.session_state.seq = (st.session_state.seq + 1) % 10 # Ciclo 0-9
-        
+        st.session_state.pdf_pronto = pdf_file
         st.subheader("🔍 Anteprima Riepilogo")
         preview = {
             "Voce": ["Potenza", "Distanza", "Istruttoria", "Gestione Polis", "Imponibile", "IVA", "Bollo", "TOTALE"],
@@ -226,20 +226,15 @@ if submit:
             corpo_mail = st.text_area("Modifica il testo della mail se necessario", value=testo_default, height=150)
 
         # IL TASTO DI CONFERMA FINALE
-        if st.button("🚀 CONFERMA E INVIA ORA"):
-            if dest_mail:
-                with st.spinner("Invio mail in corso..."):
-                    esito = invia_preventivo_email(
-                        dest_mail, 
-                        f"Preventivo PolisEnergia - {cod_pratica}", 
-                        corpo_mail, 
-                        pdf_file, 
-                        f"{cod_pratica}.pdf"
-                    )
-                    if esito:
-                        st.success(f"📩 Email inviata con successo a {dest_mail}!")
-            else:
-                st.warning("Inserisci l'indirizzo email del destinatario.")
+       if 'pdf_pronto' in st.session_state:
+    st.divider()
+    dest_mail = st.text_input("Email del cliente", key="mail_dest")
+    if st.button("🚀 INVIA ORA"):
+        # Chiamata alla funzione Aruba
+        successo = invia_preventivo_email(dest_mail, "Oggetto", "Testo", st.session_state.pdf_pronto, "file.pdf")
+        if successo:
+            st.balloons()
+            st.success("Inviata!")
     # Generazione PDF
         try:
             pdf_file = genera_pdf(dati, cod_pratica)
