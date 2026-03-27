@@ -4,8 +4,18 @@ import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 
-# --- COSTANTI ---
+# --- CONFIGURAZIONE SMTP (Da completare con i tuoi dati) ---
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SENDER_EMAIL = "tua_mail@gmail.com"
+SENDER_PASSWORD = "tua_password_applicazione" 
+
+# --- COSTANTI TECNICHE 2026 ---
 TIC_DOMESTICO_LE6 = 62.30  
 TIC_ALTRI_USI_BT = 78.81
 TIC_MT = 62.74
@@ -14,129 +24,134 @@ SPOSTAMENTO_10MT = 226.36
 FISSO_BASE_CALCOLO = 25.88
 COSTO_PASSAGGIO_MT = 494.83
 IBAN_POLIS = "IT 00 X 00000 00000 000000000000"
-LOGO_PATH = "logo_polis.png"
 
-st.set_page_config(page_title="PolisEnergia - Preventivatore", layout="wide")
+st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
-# --- FUNZIONE RESET REALE ---
-def reset_completo():
+# --- LOGICA ARROTONDAMENTO FRANCHIGIA ---
+def calcola_valore_franchigia(v):
+    # Se ha più di un decimale (es. 4.95) -> va all'intero superiore (5)
+    # Se ha un solo decimale (es. 3.3) -> resta invariato (3.3)
+    val = v * 1.1
+    if round(val, 1) != round(val, 10): # Verifica se ci sono decimali oltre il primo
+        return float(math.ceil(val))
+    return round(val, 1)
+
+def reset_totale():
     for key in list(st.session_state.keys()):
-        if key != 'seq': # Teniamo solo il numero preventivo
-            del st.session_state[key]
+        if key != 'seq': del st.session_state[key]
     st.rerun()
 
 if 'seq' not in st.session_state: st.session_state.seq = 1
 
-# --- FUNZIONE PDF ---
-def genera_pdf_polis(d):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
-    try: pdf.image(LOGO_PATH, 10, 8, 33)
-    except:
-        pdf.set_xy(10, 15); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, "POLIS ENERGIA SRL")
-    pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 8)
-    pdf.cell(0, 5, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA)", align='R', ln=1)
-    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 5, "P.IVA 05862440651 - info@polisenergia.it", align='R', ln=1)
-    pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", ln=1)
-    pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"Data: {d['Data']}", ln=1)
-    pdf.ln(5); pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, f"CLIENTE: {d['Cliente']}", ln=1)
-    pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"Indirizzo: {d['Indirizzo']}", ln=1); pdf.cell(0, 6, f"POD: {d['POD']}", ln=1)
-    pdf.ln(10); pdf.set_fill_color(0, 119, 182); pdf.set_text_color(255, 255, 255)
-    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True); pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
-    pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
-    pdf.cell(140, 8, f" Quota Tecnica TIC", 1); pdf.cell(50, 8, f"{d['Quota_Tecnica']:.2f} EUR", 1, 1, 'R')
-    if d['c_dist'] > 0: pdf.cell(140, 8, " Quota Distanza / Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Oneri Amministrativi e Istruttoria", 1); pdf.cell(50, 8, f"{ONERI_ISTRUTTORIA:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Competenze Professionali Gestione", 1); pdf.cell(50, 8, f"{d['Gestione_Polis']:.2f} EUR", 1, 1, 'R')
-    pdf.ln(2); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(140, 9, " TOTALE IMPONIBILE", 1); pdf.cell(50, 9, f"{d['Imponibile']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 9, f" IVA APPLICATA ({d['iva_perc']}%)", 1); pdf.cell(50, 9, f"{d['IVA_Euro']:.2f} EUR", 1, 1, 'R')
-    if d.get('bollo', 0) > 0: pdf.cell(140, 9, " IMPOSTA DI BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
-    pdf.set_fill_color(240, 240, 240)
-    pdf.cell(140, 11, " TOTALE DA PAGARE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['Totale']:.2f} EUR", 1, 1, 'R', True)
-    pdf.ln(15); pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, "COORDINATE BANCARIE:", ln=1)
-    pdf.set_font("Helvetica", "", 10); pdf.cell(0, 6, f"IBAN: {IBAN_POLIS}", ln=1)
-    pdf.set_font("Helvetica", "B", 10); pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", ln=1)
-    return bytes(pdf.output())
+# --- INTERFACCIA ---
+st.title("⚡ Sistema Integrato PolisEnergia")
+if st.button("🧹 PULISCI E RESETTA"): reset_totale()
 
-# --- UI ---
-st.title("⚡ PolisEnergia 4.0")
-if st.button("🧹 PULISCI TUTTO"): reset_completo()
-
-c1, c2 = st.columns(2)
-nome = c1.text_input("Ragione Sociale", key="in_nome").upper()
-indirizzo = c1.text_input("Indirizzo", key="in_ind")
-regime = c2.selectbox("Regime Fiscale", ["IVA 10%", "IVA 22%", "P.A.", "Esente"], key="in_reg")
-pod = c2.text_input("POD", key="in_pod").upper()
+with st.expander("Anagrafica e POD", expanded=True):
+    c1, c2 = st.columns(2)
+    nome = c1.text_input("Ragione Sociale", key="k_n").upper()
+    email_cliente = c1.text_input("Email per invio preventivo", key="k_m")
+    pod = c2.text_input("POD", key="k_p").upper()
+    regime = c2.selectbox("IVA / Regime", ["10%", "22%", "Esente", "P.A."], key="k_r")
 
 st.divider()
-pratica = st.selectbox("Operazione", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"], key="in_prat")
-tipo_ut = st.radio("Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="in_tipo")
 
-p_att, p_new, c_dist, t_new, flag_mt = 0.0, 0.0, 0.0, "BT", False
+pratica = st.selectbox("Tipo Operazione", ["Aumento Potenza", "Nuova Connessione", "Spostamento Contatore"], key="k_op")
+tipo_ut = st.radio("Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="k_tu")
 
-if "Potenza" in pratica or "Subentro" in pratica:
+# --- LOGICA INPUT DINAMICI ---
+p_att, p_new, c_dist, t_new, passaggio_mt = 0.0, 0.0, 0.0, "BT", False
+
+if "Potenza" in pratica:
     col1, col2 = st.columns(2)
     if tipo_ut == "Altri Usi":
-        flag_mt = col1.checkbox("Passaggio a MT?", key="in_mt")
-        t_new = "MT" if flag_mt else "BT"
-    p_att = col1.number_input("Potenza Attuale (kW)", value=3.0, step=0.5, key="in_patt")
-    p_new = col2.number_input("Nuova Potenza (kW)", value=4.5, step=0.5, key="in_pnew")
-elif "Nuova" in pratica:
-    p_new = st.number_input("Potenza (kW)", value=3.0, step=0.5, key="in_pnc")
-    c_dist = st.number_input("Quota Distanza (€)", 0.0, key="in_dist")
-elif "Spostamento" in pratica:
-    s_dist = st.radio("Distanza", ["Entro 10 mt", "Oltre 10 mt"], horizontal=True, key="in_sdist")
-    c_dist = st.number_input("Costo (€)", 0.0, key="in_dist_s") if "Oltre" in s_dist else 0.0
+        passaggio_mt = col1.checkbox("🔄 Passaggio a Media Tensione (MT)?", key="k_mt")
+        t_new = "MT" if passaggio_mt else "BT"
+    p_att = col1.number_input("Potenza Attuale (kW)", value=3.0, step=0.5, key="k_pa")
+    p_new = col2.number_input("Nuova Potenza Richiesta (kW)", value=4.5, step=0.5, key="k_pn")
 
-# --- MOTORE DI CALCOLO (LOGICA RICHIESTA) ---
-if t_new == "MT": tar = TIC_MT
-elif tipo_ut == "Domestico" and p_new <= 6: tar = TIC_DOMESTICO_LE6
-else: tar = TIC_ALTRI_USI_BT
+elif "Nuova" in pratica:
+    c1, c2 = st.columns(2)
+    p_new = c1.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5, key="k_pnc")
+    c_dist = c2.number_input("Quota Distanza / Oneri Rilievo (€)", 0.0, key="k_dist")
+
+elif "Spostamento" in pratica:
+    s_tipo = st.radio("Distanza Spostamento", ["Entro 10 metri", "Oltre 10 metri"], key="k_sd")
+    if "Entro" in s_tipo: c_dist = SPOSTAMENTO_10MT
+    else: c_dist = st.number_input("Costo da Preventivo Rilievo (€)", 0.0, key="k_sdc")
+
+# --- MOTORE DI CALCOLO ---
+tar = TIC_MT if t_new == "MT" else (TIC_DOMESTICO_LE6 if (tipo_ut == "Domestico" and p_new <= 6) else TIC_ALTRI_USI_BT)
 
 if "Spostamento" in pratica:
-    c_tec = SPOSTAMENTO_10MT if "Entro" in s_dist else 0.0
+    c_tec = c_dist
+    delta_fatturabile = 0.0
 else:
-    # LA TUA LOGICA: CEIL(P_NEW * 1.1) - (P_ATT * 1.1)
-    val_new = math.ceil(p_new * 1.1) if t_new == "BT" else p_new
-    val_att = (p_att * 1.1) if t_new == "BT" else p_att
-    c_tec = max(0.0, val_new - val_att) * tar
-    if flag_mt: c_tec += COSTO_PASSAGGIO_MT
+    v_new = calcola_valore_franchigia(p_new)
+    v_att = calcola_valore_franchigia(p_att) if p_att > 0 else 0.0
+    delta_fatturabile = max(0.0, v_new - v_att)
+    c_tec = round(delta_fatturabile * tar, 2)
+    if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
+    if "Nuova" in pratica: c_tec += c_dist # Somma distanza se nuova connessione
 
-c_gest = (c_tec + c_dist + FISSO_BASE_CALCOLO) * 0.1
-imp = c_tec + c_dist + c_gest + ONERI_ISTRUTTORIA
+# Calcoli Finali
+c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
+imp = round(c_tec + c_gest + ONERI_ISTRUTTORIA, 2)
 iva_p = 10 if "10" in regime else (22 if "22" in regime or "P.A." in regime else 0)
-iva_e = imp * (iva_p/100)
+iva_e = round(imp * (iva_p/100), 2)
 bollo = 2.0 if (regime == "Esente" and imp > 77.47) else 0.0
-tot = (imp if "P.A." in regime else imp + iva_e) + bollo
+totale = round((imp if "P.A." in regime else imp + iva_e) + bollo, 2)
 
 # --- ANTEPRIMA ---
 if nome and pod:
-    st.subheader("📊 Anteprima")
-    st.table(pd.DataFrame({
-        "Voce": ["Quota TIC", "Distanza", "Gestione", "IVA", "TOTALE"],
-        "Euro": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{c_gest:.2f}", f"{iva_e:.2f}", f"{tot:.2f}"]
-    }))
+    st.subheader(f"📊 Riepilogo Tecnico (Delta: {delta_fatturabile} kW)")
+    df_res = pd.DataFrame({
+        "Voce": ["Quota TIC / Tecnica", "Gestione Polis (10%)", "Oneri Istruttoria", "IVA", "Bollo", "TOTALE"],
+        "Importo (€)": [f"{c_tec:.2f}", f"{c_gest:.2f}", f"{ONERI_ISTRUTTORIA:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{totale:.2f}**"]
+    })
+    st.table(df_res)
 
-    if st.button("📁 GENERA E SALVA", type="primary", key="btn_gen"):
-        cod = f"PREV2026{st.session_state.seq:04d}"
-        dati = {'Data': datetime.now().strftime("%d/%m/%Y"), 'Codice': cod, 'Cliente': nome, 'Indirizzo': indirizzo, 'POD': pod, 'Quota_Tecnica': c_tec, 'c_dist': c_dist, 'Gestione_Polis': c_gest, 'Imponibile': imp, 'iva_perc': iva_p, 'IVA_Euro': iva_e, 'bollo': bollo, 'Totale': tot}
+    if st.button("🚀 GENERA, SALVA E INVIA", type="primary", use_container_width=True):
+        cod = f"POLIS-2026-{st.session_state.seq:04d}"
         
-        # Salvataggio Excel
+        # 1. GENERAZIONE PDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14); pdf.cell(0, 10, f"PREVENTIVO {cod}", ln=1, align='C')
+        pdf.set_font("Arial", "", 10); pdf.cell(0, 8, f"Spett.le {nome} - POD: {pod}", ln=1)
+        pdf.cell(150, 8, f"Quota Tecnica (Delta {delta_fatturabile} kW)", 1); pdf.cell(40, 8, f"{c_tec:.2f}", 1, ln=1)
+        pdf.cell(150, 8, "Totale da Corrispondere", 1); pdf.cell(40, 8, f"{totale:.2f}", 1, ln=1)
+        pdf.ln(10); pdf.cell(0, 5, f"IBAN: {IBAN_POLIS}", ln=1)
+        pdf.cell(0, 5, f"CAUSALE: {cod}", ln=1)
+        pdf_content = pdf.output(dest='S').encode('latin-1')
+
+        # 2. SALVATAGGIO EXCEL (GSheets)
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
-            df = conn.read()
-            df = pd.concat([df, pd.DataFrame([{k:v for k,v in dati.items() if k not in ['iva_perc','bollo','Indirizzo']}])], ignore_index=True)
-            conn.update(data=df)
-        except: pass
-        
-        st.session_state.pdf_pronto = genera_pdf_polis(dati)
-        st.session_state.ultimo_codice = cod
+            df_curr = conn.read()
+            row = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m/%Y"), "Codice": cod, "Cliente": nome, "POD": pod, "Delta": delta_fatturabile, "Totale": totale}])
+            conn.update(data=pd.concat([df_curr, row], ignore_index=True))
+            st.success("✅ Dati archiviati con successo!")
+        except: st.warning("⚠️ Salvataggio Excel non riuscito (controlla Secrets)")
+
+        # 3. INVIO EMAIL
+        if email_cliente:
+            try:
+                msg = MIMEMultipart()
+                msg['From'], msg['To'], msg['Subject'] = SENDER_EMAIL, email_cliente, f"Preventivo {cod} - PolisEnergia"
+                msg.attach(MIMEText(f"Buongiorno {nome}, in allegato il preventivo richiesto per il POD {pod}."))
+                part = MIMEApplication(pdf_content, Name=f"{cod}.pdf")
+                part['Content-Disposition'] = f'attachment; filename="{cod}.pdf"'
+                msg.attach(part)
+                with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as s:
+                    s.starttls(); s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
+                st.success(f"📧 Mail inviata a {email_cliente}")
+            except: st.error("❌ Errore invio mail")
+
+        st.session_state.pdf_pronto = pdf_content
+        st.session_state.ultimo_cod = cod
         st.session_state.seq += 1
         st.rerun()
 
-if 'pdf_pronto' in st.session_state and st.session_state.pdf_pronto:
-    st.download_button(f"📥 SCARICA PDF {st.session_state.get('ultimo_codice','')}", st.session_state.pdf_pronto, f"preventivo.pdf")
+if 'pdf_pronto' in st.session_state:
+    st.download_button(f"📥 SCARICA {st.session_state.ultimo_cod}", st.session_state.pdf_pronto, f"{st.session_state.ultimo_cod}.pdf")
