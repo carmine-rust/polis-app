@@ -10,6 +10,10 @@ import os
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
 
+# --- CONNESSIONE A GOOGLE SHEETS ---
+# Nota: Richiede il setup dei "Secrets" su Streamlit Cloud
+conn = st.connection("gsheets", type=GSheetsConnection)
+
 # Gestione del sequenziale (0-9) nella sessione attuale
 if 'contatore_sequenziale' not in st.session_state:
     st.session_state.contatore_sequenziale = 0
@@ -35,7 +39,7 @@ TIC_2026 = {
 }
 
 # --- FUNZIONE PDF ---
-def genera_pdf(d):
+def genera_pdf(d, cod_pratica):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_fill_color(0, 29, 61); pdf.rect(0, 0, 210, 45, 'F')
@@ -148,7 +152,7 @@ with st.form("main_form"):
 
         app_gest = st.checkbox("Gestione Polis (10%)", value=True)
     
-    submit = st.form_submit_button("📁 CALCOLA E GENERA ANTEPRIMA")
+    submit = st.form_submit_button("📁 GENERA, ARCHIVIA E SCARICA")
 
 # --- CALCOLO E ANTEPRIMA ---
 if submit:
@@ -192,7 +196,25 @@ if submit:
             'c_gest': c_gest, 'p_att': p_att, 'p_new': p_new, 'f_new': f_new,
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
-        
+        cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
+        st.session_state.seq = (st.session_state.seq + 1) % 10 # Ciclo 0-9
+       
+        # --- SALVATAGGIO CLOUD ---
+        try:
+            df_cloud = conn.read()
+            nuovo_dato = pd.DataFrame([{
+                "Data": datetime.now().strftime("%d/%m/%Y"),
+                "Codice": cod_pratica,
+                "Cliente": nome,
+                "POD": pod,
+                "Pratica": pratica,
+                "Totale": round(tot, 2)
+            }])
+            df_finale = pd.concat([df_cloud, nuovo_dato], ignore_index=True)
+            conn.update(data=df_finale)
+            st.success(f"✅ Archiviato su Google Sheets con codice {cod_pratica}")
+        except:
+            st.warning("⚠️ Salvataggio Cloud non riuscito. Verifica la configurazione Secrets.")
         st.subheader("🔍 Anteprima Riepilogo")
         preview = {
             "Voce": ["Potenza", "Distanza", "Istruttoria", "Gestione Polis", "Imponibile", "IVA", "Bollo", "TOTALE"],
