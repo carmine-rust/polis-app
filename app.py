@@ -251,40 +251,53 @@ if 'pdf_bytes' in st.session_state:
     st.divider()
     st.subheader("✉️ 2. Invio Email e Download")
     
-    # Recuperiamo i dati dalla sessione per sicurezza
-    destinatario = email_dest if email_dest else "Inserire mail in alto"
-    testo_mail = st.text_area("Messaggio:", f"Gentile cliente,\nin allegato il preventivo {st.session_state.current_cod}.\nSaluti.")
+    # Prepariamo il messaggio predefinito
+    testo_predefinito = f"Gentile cliente,\nin allegato trasmettiamo il preventivo {st.session_state.current_cod}.\nRestiamo a disposizione per ogni chiarimento.\n\nCordiali saluti,\nPolisEnergia srl"
+    
+    # Box di testo modificabile
+    corpo_mail = st.text_area("Modifica il testo della mail:", value=testo_predefinito, height=150)
     
     c_btn1, c_btn2 = st.columns(2)
+    
     with c_btn1:
         if st.button("📧 INVIA ORA AL CLIENTE", use_container_width=True):
-            if not email_dest:
-                st.error("❌ Manca l'indirizzo email del destinatario!")
+            # Controllo se l'email del destinatario esiste
+            if not email_dest or "@" not in email_dest:
+                st.error("❌ Errore: Inserisci un indirizzo email valido nel campo 'Email Cliente' in alto.")
             else:
-                try:
-                    # COSTRUZIONE MESSAGGIO
-                    msg = MIMEMultipart()
-                    msg['From'] = SENDER_EMAIL
-                    msg['To'] = email_dest
-                    msg['Subject'] = f"Preventivo PolisEnergia {st.session_state.current_cod}"
-                    msg.attach(MIMEText(testo_mail, 'plain'))
-                    
-                    # ALLEGATO PDF
-                    filename = f"{st.session_state.current_cod}.pdf"
-                    part = MIMEApplication(st.session_state.pdf_bytes, Name=filename)
-                    part['Content-Disposition'] = f'attachment; filename="{filename}"'
-                    msg.attach(part)
+                with st.spinner("Invio in corso..."):
+                    try:
+                        # Costruzione del Messaggio
+                        msg = MIMEMultipart()
+                        msg['From'] = SENDER_EMAIL
+                        msg['To'] = email_dest
+                        msg['Subject'] = f"Preventivo PolisEnergia {st.session_state.current_cod}"
+                        msg.attach(MIMEText(corpo_mail, 'plain'))
+                        
+                        # Allegato PDF dallo Stato della Sessione
+                        filename = f"{st.session_state.current_cod}.pdf"
+                        part = MIMEApplication(st.session_state.pdf_bytes, Name=filename)
+                        part['Content-Disposition'] = f'attachment; filename="{filename}"'
+                        msg.attach(part)
 
-                    # CONNESSIONE E INVIO REALE
-                    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-                        server.set_debuglevel(0) # Metti 1 per vedere i log tecnici se ancora non va
+                        # Connessione SMTP Reale
+                        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
                         server.starttls()
                         server.login(SENDER_EMAIL, SENDER_PASSWORD)
                         server.send_message(msg)
-                    
-                    st.success(f"📩 Mail inviata con successo a: {email_dest}")
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'invio: {str(e)}")
+                        server.quit()
+                        
+                        st.success(f"✅ Mail inviata con successo a {email_dest}!")
+                    except Exception as e:
+                        st.error(f"❌ Errore Tecnico: {str(e)}")
+                        st.warning("Verifica la 'Password per le App' di Google e i segreti SMTP.")
     
     with c_btn2:
-        st.download_button("📥 SCARICA PDF", st.session_state.pdf_bytes, f"{st.session_state.current_cod}.pdf", use_container_width=True)
+        # Tasto Download sempre disponibile
+        st.download_button(
+            label="📥 SCARICA IL PDF",
+            data=st.session_state.pdf_bytes,
+            file_name=f"{st.session_state.current_cod}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
