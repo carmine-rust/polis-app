@@ -9,7 +9,6 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
@@ -64,19 +63,15 @@ def genera_pdf(d, cod):
     pdf.cell(140, 8, " Oneri Amministrativi", 1); pdf.cell(50, 8, f"{TIC_2026['ISTRUTTORIA']:.2f} EUR", 1, 1, 'R')
     pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['c_gest']:.2f} EUR", 1, 1, 'R')
     pdf.ln(2); pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(140, 9, " IMPONIBILE", 1); pdf.cell(50, 9, f"{d['imp']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 9, f" IVA ({d['iva_p']}%)", 1); pdf.cell(50, 9, f"{d['iva_e']:.2f} EUR", 1, 1, 'R')
-    pdf.set_fill_color(240, 240, 240); pdf.cell(140, 11, " TOTALE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['tot']:.2f} EUR", 1, 1, 'R', True)
-    return pdf.output()
+    pdf.cell(140, 9, " IMPONIBILE", 1); pdf.cell(50, 9, f"{d['imponibile']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 9, f" IVA ({d['iva_perc']}%)", 1); pdf.cell(50, 9, f"{d['iva_euro']:.2f} EUR", 1, 1, 'R')
+    if d['bollo'] > 0: pdf.cell(140, 9, " BOLLO", 1); pdf.cell(50, 9, "2.00 EUR", 1, 1, 'R')
+    pdf.set_fill_color(240, 240, 240); pdf.cell(140, 11, " TOTALE", 1, 0, 'L', True); pdf.cell(50, 11, f"{d['totale']:.2f} EUR", 1, 1, 'R', True)
+    return pdf.output(dest='S').encode('latin-1')
 
 # --- INTERFACCIA ---
 st.title("⚡ PolisEnergia")
 st.caption(f"Preventivatore 4.0 | Codice: {st.session_state.ultimo_codice}")
-
-if st.button("🔴 RESET / PULISCI TUTTI I CAMPI"):
-    reset_campi()
-    
-st.divider()
 
 with st.form("main_form"):
     c1, c2 = st.columns(2)
@@ -92,13 +87,10 @@ with st.form("main_form"):
         pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"])
         tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True)
         
-       # Inizializzazione variabili
         p_att, p_new, c_dist = 0.0, 0.0, 0.0
         t_att, t_new = "BT", "BT"
 
-        # --- LOGICA TENSIONE SPECIFICA ---
         if tipo_ut == "Altri Usi":
-            # IL FLAG COMPARE SOLO PER AUMENTI O SUBENTRI
             if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
                 flag_mt = st.checkbox("🔄 Passaggio da BT a MT?")
                 if flag_mt:
@@ -106,18 +98,15 @@ with st.form("main_form"):
                 else:
                     t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
             else:
-                # Per Nuove Connessioni o Spostamenti si sceglie la tensione finale
                 t_att = t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True)
         else:
             t_att = t_new = "BT"
 
         st.markdown("---")
-        # --- LOGICA CAMPI POTENZA/DISTANZA RIGIDA ---
         if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
             cp1, cp2 = st.columns(2)
             p_att = cp1.number_input("Potenza DI PARTENZA (kW)", value=3.0, step=0.5)
             p_new = cp2.number_input("Nuova Potenza RICHIESTA (kW)", value=6.0, step=0.5)
-            # In questo blocco c_dist rimane 0.0
         
         elif pratica == "Nuova Connessione":
             p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
@@ -132,12 +121,9 @@ with st.form("main_form"):
     
     submit = st.form_submit_button("📁 GENERA, ARCHIVIA E SCARICA")
 
-# --- CALCOLO E ANTEPRIMA ---
+# --- CALCOLO ---
 if submit:
     if nome and indirizzo:
-        f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
-        f_new = 1.1 if (t_new == "BT" and p_new <= 30) else 1.0
-        
         def get_tariffa(tens, pot, ut):
             if tens == "MT": return TIC_2026["MT"]
             if ut == "Domestico" and pot <= 6: return TIC_2026["DOM_LE6"]
@@ -147,19 +133,14 @@ if submit:
         px_new = get_tariffa(t_new, p_new, tipo_ut)
         
         if pratica == "Spostamento":
-            c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
+            c_tec = TIC_2026["SPOST_ENTRO_10"] if s_choice == "Entro 10m" else TIC_2026["SPOST_OLTRE_10"]
+        elif pratica == "Nuova Connessione":
+            c_tec = math.ceil(p_new) * px_new
         else:
-            # 1. Potenza attuale con franchigia 1.1 (se BT <= 30)
+            f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
             p_att_virtuale = p_att * f_att 
-    
-            # 2. Potenza nuova ARROTONDATA PER ECCESSO all'intero (come da tua richiesta)
             p_new_arrotondata = math.ceil(p_new) 
-    
-            # 3. Differenza calcolata tra Intero e Virtuale Partenza
-            diff_kw = max(0.0, p_new_arrotondata - p_att_virtuale)
-    
-            # 4. Calcolo economico
-            c_tec = diff_kw * px_new
+            c_tec = max(0.0, (p_new_arrotondata * px_new) - (p_att_virtuale * px_att))
             
         c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
         imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
@@ -171,51 +152,31 @@ if submit:
         dati = {
             'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
             'pratica': pratica, 't_att': t_att, 't_new': t_new, 'c_tec': c_tec, 'c_dist': c_dist, 
-            'c_gest': c_gest, 'p_att': p_att, 'p_new': p_new, 'f_new': f_new,
+            'c_gest': c_gest, 'p_att': p_att, 'p_new': p_new,
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
-        cod_pratica = f"BA{int(tot)}{st.session_state.ultimo_codice}"
-        try:
-            pdf_generato = genera_pdf(dati, cod_pratica)
-            st.session_state.pdf_pronto = pdf_generato
-            st.session_state.codice_per_mail = cod_pratica
-            st.session_state.pratica_per_mail = pratica
-
-            st.success(f"✅ Preventivo {cod_pratica} generato!")
-        except Exception as e:
-            st.error(f"Errore generazione PDF: {e}")
-            
         
+        cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
+        
+        # Correzione errore pdf_file: assegniamo l'output di genera_pdf direttamente allo stato
+        st.session_state.pdf_pronto = genera_pdf(dati, cod_pratica)
         st.session_state.ultimo_codice = cod_pratica
-        st.session_state.seq = (st.session_state.seq + 1) % 10 # Ciclo 0-9
-        st.session_state.pdf_pronto = pdf_file
-        st.subheader("🔍 Anteprima Riepilogo")
-        preview = {
-            "Voce": ["Potenza", "Distanza", "Istruttoria", "Gestione Polis", "Imponibile", "IVA", "Bollo", "TOTALE"],
-            "Importo (€)": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{TIC_2026['ISTRUTTORIA']:.2f}", f"{c_gest:.2f}", f"{imp:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{tot:.2f}**"]
-        }
-        st.table(pd.DataFrame(preview))
-        st.divider()
-        st.subheader("✉️ Preparazione Invio Email")
+        st.session_state.seq = (st.session_state.seq + 1) % 10
         
-        col_mail1, col_mail2 = st.columns([1, 2])
-        with col_mail1:
-            dest_mail = st.text_input("Email del cliente", placeholder="cliente@esempio.it")
-        
-        with col_mail2:
-            # Testo predefinito che l'utente può confermare o modificare
-            testo_default = f"Gentile Cliente,\n\nin allegato il preventivo {cod_pratica} relativo alla pratica di {pratica}.\n\nRestiamo a disposizione per ogni chiarimento.\n\nCordiali saluti,\nPolisEnergia srl"
-            corpo_mail = st.text_area("Modifica il testo della mail se necessario", value=testo_default, height=150)
+        st.rerun()
 
-# --- INVIO MAIL ---
+# --- INVIO MAIL E DOWNLOAD ---
 if st.session_state.pdf_pronto:
     st.divider()
     c_m1, c_m2 = st.columns([1, 2])
     with c_m1:
         mail_c = st.text_input("Email Cliente", key="m_c")
-        st.download_button("📥 SCARICA", data=bytes(st.session_state.pdf_pronto), file_name=f"{st.session_state.ultimo_codice}.pdf")
+        st.download_button("📥 SCARICA PDF", data=st.session_state.pdf_pronto, file_name=f"{st.session_state.ultimo_codice}.pdf")
     with c_m2:
         txt = st.text_area("Messaggio", value=f"In allegato preventivo {st.session_state.ultimo_codice}", key="m_t")
         if st.button("🚀 INVIA"):
-            if invia_mail_aruba(mail_c, f"Preventivo {st.session_state.ultimo_codice}", txt, st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf"):
-                st.success("Inviata!"); st.balloons()
+            if mail_c:
+                if invia_mail_aruba(mail_c, f"Preventivo {st.session_state.ultimo_codice}", txt, st.session_state.pdf_pronto, f"{st.session_state.ultimo_codice}.pdf"):
+                    st.success("Inviata!"); st.balloons()
+            else:
+                st.warning("Inserire un'email.")
