@@ -209,7 +209,7 @@ if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_w
     cod = f"PREV2026{st.session_state.seq:04d}"
     
     # PDF
-   dati_pdf = {
+    dati_pdf = {
         "Codice": cod,
         "Cliente": nome,
         "Indirizzo": indirizzo, # Assicurati di avere la variabile indirizzo
