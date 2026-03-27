@@ -106,13 +106,13 @@ if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
         if tipo_ut == "Altri Usi":
             flag_mt = st.checkbox("Passaggio a MT (+494.83€)")
             t_new = "MT" if flag_mt else st.radio("Tensione", ["BT", "MT"])
-        p_att = st.number_input("Potenza Attuale (kW)", 3.0, step=0.5)
+        p_att = st.number_input("Potenza Attuale (kW)", 0.0, step=0.5)
     with col2:
-        p_new = st.number_input("Nuova Potenza (kW)", 6.0, step=0.5)
+        p_new = st.number_input("Nuova Potenza (kW)", 0.0, step=0.5)
 elif pratica == "Nuova Connessione":
     col1, col2 = st.columns(2)
     with col1:
-        p_new = st.number_input("Potenza Richiesta (kW)", 3.0, step=0.5)
+        p_new = st.number_input("Potenza Richiesta (kW)", 0.0, step=0.5)
     with col2:
         c_dist = st.number_input("Quota Distanza (€) - Manuale", 0.0)
 elif pratica == "Spostamento":
