@@ -19,8 +19,8 @@ if 'ultimo_codice' not in st.session_state: st.session_state.ultimo_codice = "--
 
 TIC_2026 = {
     "DOM_LE6": 62.30, "BT_ALTRI": 78.81, "MT": 62.74,
-    "SPOST_ENTRO_10": 226.36, "SPOST_OLTRE_10": 226.36, 
-    "ISTRUTTORIA": 27.42, "FISSO_BASE_CALCOLO": 25.88
+    "SPOST_ENTRO_10": 226.36, "ISTRUTTORIA": 27.42, 
+    "FISSO_BASE_CALCOLO": 25.88, "COSTO_PASSAGGIO_MT": 494.83
 }
 
 # --- FUNZIONI CORE ---
@@ -89,33 +89,32 @@ with st.form("main_form"):
         pratica = st.selectbox("Tipo di Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento"])
         tipo_ut = st.radio("Destinazione", ["Domestico", "Altri Usi"], horizontal=True)
         
+        # Inizializzazione variabili di input
         p_att, p_new, c_dist = 0.0, 0.0, 0.0
         t_att, t_new = "BT", "BT"
-
-        if tipo_ut == "Altri Usi":
-            if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
-                flag_mt = st.checkbox("🔄 Passaggio da BT a MT?")
-                if flag_mt:
+        flag_passaggio_mt = False
+        
+        if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
+            if tipo_ut == "Altri Usi":
+                flag_passaggio_mt = st.checkbox("🔄 Passaggio a MT?")
+                if flag passaggio_mt:
                     t_att, t_new = "BT", "MT"
                 else:
-                    t_att = t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True, key="t_radio")
-            else:
-                t_att = t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True, key="tr_radio")
-        else:
-            t_att = t_new = "BT"
-
-        st.markdown("---")
-        if "Nuova" in pratica:
-            p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
-            c_dist = st.number_input("Quota Distanza Distributore (€)", value=187.0)
-        elif "Spostamento" in pratica:
-            s_choice = st.radio("Distanza", ["Entro 10m", "Oltre 10m"], horizontal=True)
-            if "Oltre" in s_choice:
-                c_dist = st.number_input("Quota Distanza (€)", value=0.0)
-        else: # Aumento o Subentro
+                    t_att, t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
             cp1, cp2 = st.columns(2)
             p_att = cp1.number_input("Potenza Partenza (kW)", value=3.0, step=0.5)
-            p_new = cp2.number_input("Potenza Richiesta (kW)", value=6.0, step=0.5)
+            p_new = cp2.number_input("Nuova Potenza (kW)", value=6.0, step=0.5)
+            
+        elif pratica == "Nuova Connessione":
+            t_new = st.radio("Tensione Richiesta", ["BT", "MT"], horizontal=True) if tipo_ut == "Altri Usi" else "BT"
+            p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, step=0.5)
+            c_dist = st.number_input("Quota Distanza (da inserire a mano) (€)", value=0.0)
+       elif pratica == "Spostamento":
+            s_distanza = st.radio("Distanza Spostamento", ["Entro i 10 mt", "Oltre i 10 mt"], horizontal=True)
+            if "Oltre" in s_distanza:
+                c_dist = st.number_input("Costo Spostamento Oltre 10mt (a mano) (€)", value=0.0)
+
+        app_gest = st.checkbox("Gestione Polis (10%)", value=True)
 
         app_gest = st.checkbox("Gestione Polis (10%)", value=True)
     
