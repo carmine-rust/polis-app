@@ -187,7 +187,7 @@ if submit:
             
         
         st.session_state.ultimo_codice = cod_pratica
-        st.session_state.seq = (st.session_state.ultimo_codice + 1) % 10 # Ciclo 0-9
+        st.session_state.seq = (st.session_state.seq + 1) % 10 # Ciclo 0-9
         st.session_state.pdf_pronto = pdf_file
         st.subheader("🔍 Anteprima Riepilogo")
         preview = {
