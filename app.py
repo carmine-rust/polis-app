@@ -27,6 +27,99 @@ IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena"
 
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
+def genera_pdf_polis(d):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- HEADER BLU ---
+    pdf.set_fill_color(0, 51, 102) # Blu scuro Polis
+    pdf.rect(0, 0, 210, 40, 'F')
+    
+    # Logo (se presente) o Testo
+    try:
+        pdf.image("logo_polis.png", 10, 8, 33)
+    except:
+        pdf.set_xy(10, 12)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Arial", "B", 18)
+        pdf.cell(0, 10, "POLIS ENERGIA SRL")
+    
+    # Dati Aziendali in Bianco
+    pdf.set_xy(120, 10)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", "", 8)
+    pdf.multi_cell(80, 4, "Via Terre delle Risaie, 4 - 84131 Salerno (SA)\nP.IVA 05050950657\nassistenza@polisenergia.it - www.polisenergia.it", align='R')
+    
+    # --- TITOLO E DATA ---
+    pdf.set_xy(10, 50)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, f"Data emissione: {datetime.now().strftime('%d/%m/%Y')}", ln=1)
+    
+    # --- DATI CLIENTE ---
+    pdf.ln(5)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(0, 8, f" SPETT.LE CLIENTE: {d['Cliente']}", 0, 1, 'L', True)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 7, f" POD: {d['POD']}", ln=1)
+    pdf.cell(0, 7, f" Indirizzo: {d['Indirizzo']}", ln=1)
+    
+    # --- TABELLA PRESTAZIONI ---
+    pdf.ln(10)
+    pdf.set_font("Arial", "B", 10)
+    pdf.set_fill_color(0, 51, 102)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True)
+    pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
+    
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", "", 10)
+    
+    # Righe Tabella
+    voci = [
+        ("Quota Tecnica TIC (Potenza Disponibile)", f"{d['C_Tec']:.2f}"),
+        ("Oneri Amministrativi", f"{d['Oneri']:.2f}"),
+        ("Oneri Gestione Pratica", f"{d['Gestione']:.2f}")
+    ]
+    
+    for voce, importo in voci:
+        pdf.cell(140, 8, f" {voce}", 1)
+        pdf.cell(50, 8, f"{importo} EUR ", 1, 1, 'R')
+        
+    # Totali
+    pdf.ln(2)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(140, 10, " TOTALE IMPONIBILE", 1)
+    pdf.cell(50, 10, f"{d['Imponibile']:.2f} EUR ", 1, 1, 'R')
+    pdf.cell(140, 10, f" IVA APPLICATA ({d['IVA_Perc']}%)", 1)
+    pdf.cell(50, 10, f"{d['IVA_Euro']:.2f} EUR ", 1, 1, 'R')
+    
+    pdf.set_fill_color(220, 230, 240)
+    pdf.cell(140, 12, " TOTALE DA CORRISPONDERE", 1, 0, 'L', True)
+    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR ", 1, 1, 'R', True)
+    
+    # --- PAGAMENTO ---
+    pdf.ln(15)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, f"Bonifico Bancario IBAN: {d['IBAN']}", ln=1)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", ln=1)
+    
+    # --- FIRME ---
+    pdf.set_y(-50)
+    pdf.set_font("Arial", "", 8)
+    pdf.cell(95, 5, "Timbro e Firma PolisEnergia srl", 0, 0, 'L')
+    pdf.cell(95, 5, "Firma per Accettazione Cliente", 0, 1, 'R')
+    pdf.ln(10)
+    pdf.line(140, pdf.get_y()+5, 200, pdf.get_y()+5) # Linea Cliente
+    
+    return pdf.output(dest='S')
+
 # --- LOGICA FRANCHIGIA (3.3 resta 3.3 | 4.95 diventa 5) ---
 def format_franchigia(p):
     val = round(p * 1.1, 2)
@@ -113,32 +206,33 @@ with col_tab2:
 
 # --- 4. AZIONI (GENERA, ARCHIVIA) ---
 if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_width=True):
-    cod = f"POLIS-2026-{st.session_state.seq:04d}"
+    cod = f"PREV2026{st.session_state.seq:04d}"
     
     # PDF
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 14); pdf.cell(0, 10, f"PREVENTIVO {cod}", ln=1, align='C')
-    pdf.set_font("Arial", "", 10); pdf.cell(0, 8, f"Cliente: {nome} - POD: {pod}", ln=1)
-    pdf.cell(150, 8, f"Quota Tecnica (Delta {delta_kw} kW)", 1); pdf.cell(40, 8, f"{c_tec:.2f}", 1, ln=1)
-    pdf.cell(150, 8, "Totale", 1); pdf.cell(40, 8, f"{totale:.2f}", 1, ln=1)
-    pdf.ln(10); pdf.cell(0, 5, f"IBAN: {IBAN_POLIS}", ln=1)
-    pdf.cell(0, 5, f"CAUSALE: {cod}", ln=1)
+   dati_pdf = {
+        "Codice": cod,
+        "Cliente": nome,
+        "Indirizzo": indirizzo, # Assicurati di avere la variabile indirizzo
+        "POD": pod,
+        "C_Tec": c_tec,
+        "Oneri": ONERI_ISTRUTTORIA,
+        "Gestione": c_gest,
+        "Imponibile": imp,
+        "IVA_Perc": iva_p,
+        "IVA_Euro": iva_e,
+        "Totale": totale,
+        "IBAN": IBAN_POLIS
+    }
     
-    try:
-        # Otteniamo l'output come stringa o bytes a seconda della versione
-        pdf_output = pdf.output(dest='S')
+    output = genera_pdf_polis(dati_pdf)
+    
+    # Gestione Errore Bytes
+    if isinstance(output, str):
+        st.session_state.pdf_bytes = output.encode('latin-1')
+    else:
+        st.session_state.pdf_bytes = bytes(output)
         
-        if isinstance(pdf_output, str):
-            # Se è una stringa, la codifichiamo
-            st.session_state.pdf_bytes = pdf_output.encode('latin-1')
-        else:
-            # Se sono già bytes, li salviamo direttamente
-            st.session_state.pdf_bytes = bytes(pdf_output)
-            
-        st.session_state.current_cod = cod
-    except Exception as e:
-        st.error(f"Errore tecnico nella creazione del file PDF: {e}")
+    st.session_state.current_cod = cod
     
     # EXCEL
     try:
