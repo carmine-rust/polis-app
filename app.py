@@ -97,7 +97,7 @@ with st.form("main_form"):
         if pratica in ["Aumento Potenza", "Subentro con Modifica"]:
             if tipo_ut == "Altri Usi":
                 flag_passaggio_mt = st.checkbox("🔄 Passaggio a MT?")
-                if flag passaggio_mt:
+                if flag_passaggio_mt:
                     t_att, t_new = "BT", "MT"
                 else:
                     t_att, t_new = st.radio("Tensione", ["BT", "MT"], horizontal=True)
