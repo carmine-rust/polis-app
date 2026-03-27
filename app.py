@@ -175,45 +175,6 @@ if st.button("📁 GENERA PREVENTIVO", use_container_width=True):
     
     submit = st.form_submit_button("📁 GENERA PREVENTIVO")
 
-# --- CALCOLO ---
-if submit:
-    if nome and indirizzo:
-        def get_tariffa(tens, pot, ut):
-            if tens == "MT": return TIC_2026["MT"]
-            if ut == "Domestico" and pot <= 6: return TIC_2026["DOM_LE6"]
-            return TIC_2026["BT_ALTRI"]
-
-        px_att = get_tariffa(t_att, p_att, tipo_ut)
-        px_new = get_tariffa(t_new, p_new, tipo_ut)
-        
-        # LOGICA TECNICA RIPRISTINATA
-        if "Spostamento" in pratica:
-            c_tec = TIC_2026["SPOST_ENTRO_10"] if "Entro" in s_choice else TIC_2026["SPOST_OLTRE_10"]
-        elif "Nuova" in pratica:
-            c_tec = math.ceil(p_new) * px_new
-        else: # Aumento / Subentro
-            f_att = 1.1 if (t_att == "BT" and p_att <= 30) else 1.0
-            c_tec = max(0.0, (math.ceil(p_new) * px_new) - (p_att * f_att * px_att))
-            
-        c_gest = (c_tec + c_dist + TIC_2026["FISSO_BASE_CALCOLO"]) * 0.10 if app_gest else 0.0
-        imp = c_tec + c_dist + c_gest + TIC_2026["ISTRUTTORIA"]
-        iva_p = 10 if "10" in uso else (22 if ("22" in uso or "P.A." in uso) else 0)
-        iva_e = imp * (iva_p/100)
-        bollo = 2.0 if (uso == "Esente" and imp > 77.47) else 0.0
-        tot = (imp if "P.A." in uso else imp + iva_e) + bollo
-
-        dati = {
-            'nome': nome, 'indirizzo': indirizzo, 'pod': pod if pod else "N.D.",
-            'pratica': pratica, 't_att': t_att, 't_new': t_new, 'c_tec': c_tec, 'c_dist': c_dist, 
-            'c_gest': c_gest, 'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
-        }
-        
-        cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
-        st.session_state.pdf_pronto = genera_pdf(dati, cod_pratica)
-        st.session_state.ultimo_codice = cod_pratica
-        st.session_state.seq = (st.session_state.seq + 1) % 10
-        st.rerun()
-
 # --- SEZIONE INVIO E DOWNLOAD ---
 if st.session_state.pdf_pronto:
     st.divider()
