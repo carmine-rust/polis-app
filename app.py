@@ -10,6 +10,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+import ssl
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
@@ -280,11 +281,12 @@ if submit:
                 part['Content-Disposition'] = f'attachment; filename="{nome_file}"'
                 msg.attach(part)
 
-                with smtplib.SMTP(st.secrets["EMAIL_SERVER"], st.secrets["EMAIL_PORT"]) as server:
-                    server.starttls()
+                context = ssl.create_default_context()
+
+                with smtplib.SMTP_SSL(st.secrets["EMAIL_SERVER"], st.secrets["EMAIL_PORT"], context=context) as server:
                     server.login(st.secrets["EMAIL_SENDER"], st.secrets["EMAIL_PASSWORD"])
                     server.send_message(msg)
-                return True
+                    return True
             except Exception as e:
-                st.error(f"Errore invio mail: {e}")
-                return False
+                    st.error(f"Errore Aruba Mail: {e}")
+                    return False
