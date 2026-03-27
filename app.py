@@ -13,7 +13,7 @@ ONERI_ISTRUTTORIA = 27.42
 SPOSTAMENTO_10MT = 226.36
 FISSO_BASE_CALCOLO = 25.88
 COSTO_PASSAGGIO_MT = 494.83
-IBAN_POLIS = "IT 00 X 00000 00000 000000000000"
+IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena"
 LOGO_PATH = "logo_polis.png"
 
 st.set_page_config(page_title="PolisEnergia - Preventivatore", layout="wide")
@@ -38,7 +38,7 @@ def genera_pdf_polis(d):
     
     pdf.set_xy(120, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("Helvetica", "B", 8)
     pdf.cell(0, 5, "PolisEnergia srl - Via Terre delle Risaie, 4 - 84131 Salerno (SA)", align='R', ln=1)
-    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 5, "P.IVA 05862440651 - info@polisenergia.it", align='R', ln=1)
+    pdf.set_font("Helvetica", "", 8); pdf.cell(0, 5, "P.IVA 05050950657 - assistenza@polisenergia.it", align='R', ln=1)
     
     pdf.set_xy(10, 55); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", ln=1)
@@ -54,8 +54,8 @@ def genera_pdf_polis(d):
     pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 10)
     pdf.cell(140, 8, f" Quota Tecnica TIC (Calcolata su Potenza Disponibile Arrotondata)", 1); pdf.cell(50, 8, f"{d['Quota_Tecnica']:.2f} EUR", 1, 1, 'R')
     if d['c_dist'] > 0: pdf.cell(140, 8, " Quota Distanza / Oneri di Rilievo", 1); pdf.cell(50, 8, f"{d['c_dist']:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Oneri Amministrativi e Istruttoria", 1); pdf.cell(50, 8, f"{ONERI_ISTRUTTORIA:.2f} EUR", 1, 1, 'R')
-    pdf.cell(140, 8, " Competenze Professionali Gestione Pratica", 1); pdf.cell(50, 8, f"{d['Gestione_Polis']:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Oneri Amministrativi", 1); pdf.cell(50, 8, f"{ONERI_ISTRUTTORIA:.2f} EUR", 1, 1, 'R')
+    pdf.cell(140, 8, " Oneri Gestione Pratica", 1); pdf.cell(50, 8, f"{d['Gestione_Polis']:.2f} EUR", 1, 1, 'R')
     
     pdf.ln(2); pdf.set_font("Helvetica", "B", 10)
     pdf.cell(140, 9, " TOTALE IMPONIBILE", 1); pdf.cell(50, 9, f"{d['Imponibile']:.2f} EUR", 1, 1, 'R')
