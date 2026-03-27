@@ -42,7 +42,7 @@ def invia_mail_aruba(destinatario, oggetto, corpo, pdf_bytes, nome_file):
             server.login(st.secrets["EMAIL_SENDER"], st.secrets["EMAIL_PASSWORD"])
             server.send_message(msg)
         return True
-    except Exception as e:
+     except Exception as e:
         st.error(f"Errore Aruba: {e}")
         return False
 
