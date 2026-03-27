@@ -6,6 +6,10 @@ from fpdf import FPDF
 import os
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia Preventivatore 4.0", page_icon="⚡", layout="wide")
@@ -208,14 +212,40 @@ if submit:
             "Importo (€)": [f"{c_tec:.2f}", f"{c_dist:.2f}", f"{TIC_2026['ISTRUTTORIA']:.2f}", f"{c_gest:.2f}", f"{imp:.2f}", f"{iva_e:.2f}", f"{bollo:.2f}", f"**{tot:.2f}**"]
         }
         st.table(pd.DataFrame(preview))
+        st.divider()
+        st.subheader("✉️ Preparazione Invio Email")
         
-    # Generazione PDF (Questa è la riga che dava errore!)
+        col_mail1, col_mail2 = st.columns([1, 2])
+        with col_mail1:
+            dest_mail = st.text_input("Email del cliente", placeholder="cliente@esempio.it")
+        
+        with col_mail2:
+            # Testo predefinito che l'utente può confermare o modificare
+            testo_default = f"Gentile Cliente,\n\nin allegato il preventivo {cod_pratica} relativo alla pratica di {pratica}.\n\nRestiamo a disposizione per ogni chiarimento.\n\nCordiali saluti,\nPolisEnergia srl"
+            corpo_mail = st.text_area("Modifica il testo della mail se necessario", value=testo_default, height=150)
+
+        # IL TASTO DI CONFERMA FINALE
+        if st.button("🚀 CONFERMA E INVIA ORA"):
+            if dest_mail:
+                with st.spinner("Invio mail in corso..."):
+                    esito = invia_preventivo_email(
+                        dest_mail, 
+                        f"Preventivo PolisEnergia - {cod_pratica}", 
+                        corpo_mail, 
+                        pdf_file, 
+                        f"{cod_pratica}.pdf"
+                    )
+                    if esito:
+                        st.success(f"📩 Email inviata con successo a {dest_mail}!")
+            else:
+                st.warning("Inserisci l'indirizzo email del destinatario.")
+    # Generazione PDF
         try:
             pdf_file = genera_pdf(dati, cod_pratica)
             st.success(f"✅ Preventivo {cod_pratica} creato!")
             st.download_button("📥 SCARICA PDF", data=bytes(pdf_file), file_name=f"{cod_pratica}.pdf", use_container_width=True)
             
-            # Salvataggio Cloud (opzionale se hai configurato GSheets)
+            # Salvataggio Cloud
             # 1. Leggi i dati esistenti
             df_esistente = conn.read(ttl=0) # ttl=0 forza l'aggiornamento senza cache
             
@@ -236,3 +266,25 @@ if submit:
         except Exception as e:
             st.error(f"Errore di scrittura nel Cloud: {e}")
             st.info("Assicurati che la prima riga del foglio abbia: Data, Codice, Cliente, Totale")
+            
+# --- FUNZIONE INVIO MAIL ---
+        def invia_preventivo_email(destinatario, oggetto, corpo, allegato_pdf, nome_file):
+            try:
+                msg = MIMEMultipart()
+                msg['From'] = st.secrets["EMAIL_SENDER"]
+                msg['To'] = destinatario
+                msg['Subject'] = oggetto
+                msg.attach(MIMEText(corpo, 'plain'))
+
+                part = MIMEApplication(allegato_pdf, Name=nome_file)
+                part['Content-Disposition'] = f'attachment; filename="{nome_file}"'
+                msg.attach(part)
+
+                with smtplib.SMTP(st.secrets["EMAIL_SERVER"], st.secrets["EMAIL_PORT"]) as server:
+                    server.starttls()
+                    server.login(st.secrets["EMAIL_SENDER"], st.secrets["EMAIL_PASSWORD"])
+                    server.send_message(msg)
+                return True
+        except Exception as e:
+        st.error(f"Errore invio mail: {e}")
+        return False
