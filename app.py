@@ -285,6 +285,6 @@ if submit:
                     server.login(st.secrets["EMAIL_SENDER"], st.secrets["EMAIL_PASSWORD"])
                     server.send_message(msg)
                 return True
-        except Exception as e:
-        st.error(f"Errore invio mail: {e}")
-        return False
+            except Exception as e:
+                st.error(f"Errore invio mail: {e}")
+                return False
