@@ -194,7 +194,10 @@ else:
    # Se parte in MT, o se passa a MT, usiamo TIC_MT. Altrimenti Altri Usi BT.
     if t_partenza == "MT" or passaggio_mt:
         tar = TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT
-
+c_tec = round(delta * tar, 2)
+if passaggio_mt:
+    c_tec += COSTO_PASSAGGIO_MT
+    
 if "Spostamento" in pratica:
     c_tec = c_dist
     delta_kw = 0.0
