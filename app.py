@@ -156,7 +156,14 @@ tipo_ut = c4.radio("Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="u
 
 p_att, p_new, c_dist, t_new, passaggio_mt = 0.0, 0.0, 0.0, "BT", False
 t_partenza="BT"
+delta, tar = 0.0, 0.0
 
+# --- 1. INIZIALIZZAZIONE VARIABILI (Sempre all'inizio) ---
+p_att, p_new, c_dist, passaggio_mt = 0.0, 0.0, 0.0, False
+t_partenza = "BT"
+delta, tar = 0.0, 0.0
+
+# --- 2. INPUT UTENTE (BLOCCHI IF/ELIF) ---
 if "Potenza" in pratica or "Subentro" in pratica:
     col1, col2 = st.columns(2)
     if tipo_ut == "Altri Usi":
@@ -165,56 +172,57 @@ if "Potenza" in pratica or "Subentro" in pratica:
             passaggio_mt = col1.checkbox("🔄 Passaggio a Media Tensione (MT)?", key="mt")
     p_att = col1.number_input("Potenza Attuale (kW)", value=3.0, step=0.5, key="pa")
     p_new = col2.number_input("Potenza Richiesta (kW)", value=4.5, step=0.5, key="pn")
+
 elif "Nuova" in pratica:
     p_new = st.number_input("Potenza Richiesta (kW)", value=3.0, key="pnc")
     c_dist = st.number_input("Quota Distanza €", 0.0, key="dist")
+
 elif "Spostamento" in pratica:
     s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
     c_dist = SPOSTAMENTO_10MT if "Entro" in s_dist else st.number_input("Costo Rilievo €", 0.0, key="sdc")
-   
-    p_att = st.number_input("Potenza Attuale (kW)", value=0.0)
-    p_new = st.number_input("Potenza Richiesta (kW)", value=0.0)
-    is_domestico = st.checkbox("Utenza Domestica") # <--- Fondamentale per la tua regola
-    passaggio_mt = st.checkbox("Passaggio a MT")
-    delta = 0.0
-    tar= 0.0
+
+# --- 3. LOGICA LIMITATORE E TARIFFE (FUORI DAGLI IF PRECEDENTI) ---
+if p_new > 0:
     if p_new <= 30:
-        v_new = format_franchigia(p_new * 1.1, 1)
+        # Caso Sotto 30 kW: Franchigia 10%
+        v_new = round(p_new * 1.1, 1)
         v_att = round(p_att * 1.1, 1) if p_att > 0 else 0.0
         delta = round(v_new - v_att, 1)
-    
-    # Agevolazione Domestico <= 6kW
-    if tipo_ut == "Domestico" and p_new <= 6:
-        tar = TIC_DOMESTICO_LE6
+        
+        # Scelta Tariffa
+        if tipo_ut == "Domestico" and p_new <= 6:
+            tar = TIC_DOMESTICO_LE6
+        else:
+            tar = TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT
     else:
+        # Caso Oltre 30 kW: Potenza secca
+        delta = round(p_new - p_att, 1)
         tar = TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT
-else:
-    # Oltre 30 kW (Senza franchigia)
-    delta = round(p_new - p_att, 1)
-   # Se parte in MT, o se passa a MT, usiamo TIC_MT. Altrimenti Altri Usi BT.
-    if t_partenza == "MT" or passaggio_mt:
-        tar = TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT
-c_tec = round(delta * tar, 2)
-if passaggio_mt:
-    c_tec += COSTO_PASSAGGIO_MT
-    
+
+# --- 4. CALCOLO QUOTA TECNICA FINALE ---
 if "Spostamento" in pratica:
     c_tec = c_dist
-    delta_kw = 0.0
 else:
-    v_new = format_franchigia(p_new)
-    v_att = format_franchigia(p_att) if p_att > 0 else 0.0
-    delta_kw = round(v_new - v_att, 1)
     c_tec = round(delta * tar, 2)
-    if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
-    if "Nuova" in pratica: c_tec += c_dist
+    if passaggio_mt: 
+        c_tec += COSTO_PASSAGGIO_MT
+    if "Nuova" in pratica: 
+        c_tec += c_dist
 
+# --- 5. RIEPILOGO ONERI E TOTALI ---
 c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
 imp = round(c_tec + c_gest + ONERI_ISTRUTTORIA, 2)
+
+# Calcolo IVA e Bollo
 iva_p = 10 if "10" in regime else (22 if "22" in regime or "P.A." in regime else 0)
 iva_e = round(imp * (iva_p/100), 2)
 bollo = 2.0 if (regime == "Esente" and imp > 77.47) else 0.0
-totale = round((imp if "P.A." in regime else imp + iva_e) + bollo, 2)
+
+# Totale Finale
+if "P.A." in regime:
+    totale = round(imp + bollo, 2) # IVA Scissa per P.A.
+else:
+    totale = round(imp + iva_e + bollo, 2)
 
 # --- 3. ANTEPRIMA ---
 st.subheader("📊 Anteprima Calcolo")
