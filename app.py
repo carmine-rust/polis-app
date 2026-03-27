@@ -226,11 +226,11 @@ if submit:
             corpo_mail = st.text_area("Modifica il testo della mail se necessario", value=testo_default, height=150)
 
         # IL TASTO DI CONFERMA FINALE
-       if 'pdf_pronto' in st.session_state:
-            st.divider()
-            dest_mail = st.text_input("Email del cliente", key="mail_dest")
+    if 'pdf_pronto' in st.session_state:
+        st.divider()
+        dest_mail = st.text_input("Email del cliente", key="mail_dest")
             if st.button("🚀 INVIA ORA"):
-                # Chiamata alla funzione Aruba
+                 # Chiamata alla funzione Aruba
                 successo = invia_preventivo_email(dest_mail, "Oggetto", "Testo", st.session_state.pdf_pronto, "file.pdf")
                 if successo:
                     st.balloons()
