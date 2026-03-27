@@ -162,7 +162,7 @@ if "Potenza" in pratica or "Subentro" in pratica:
     if tipo_ut == "Altri Usi":
         t_partenza = col1.selectbox("Tensione di Partenza", ["BT", "MT"], key="t_part")
         if t_partenza == "BT":
-        passaggio_mt = col1.checkbox("🔄 Passaggio a Media Tensione (MT)?", key="mt")
+            passaggio_mt = col1.checkbox("🔄 Passaggio a Media Tensione (MT)?", key="mt")
     p_att = col1.number_input("Potenza Attuale (kW)", value=3.0, step=0.5, key="pa")
     p_new = col2.number_input("Potenza Richiesta (kW)", value=4.5, step=0.5, key="pn")
 elif "Nuova" in pratica:
