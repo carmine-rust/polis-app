@@ -143,6 +143,7 @@ if st.button("🧹 PULISCI TUTTO"): reset_form()
 with st.container():
     c1, c2 = st.columns(2)
     nome = c1.text_input("Ragione Sociale", key="n").upper()
+    indirizzo = c1.text_input("Indirizzo", key="in_ind")
     email_dest = c1.text_input("Email Cliente", key="m")
     pod = c2.text_input("POD", key="p").upper()
     regime = c2.selectbox("Regime IVA", ["10%", "22%", "Esente", "P.A."], key="r")
@@ -212,7 +213,7 @@ if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_w
     dati_pdf = {
         "Codice": cod,
         "Cliente": nome,
-        "Indirizzo": indirizzo, # Assicurati di avere la variabile indirizzo
+        "Indirizzo": indirizzo if ('indirizzo' in locals() and indirizzo) else "N.D.",
         "POD": pod,
         "C_Tec": c_tec,
         "Oneri": ONERI_ISTRUTTORIA,
