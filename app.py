@@ -125,8 +125,20 @@ if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_w
     pdf.ln(10); pdf.cell(0, 5, f"IBAN: {IBAN_POLIS}", ln=1)
     pdf.cell(0, 5, f"CAUSALE: {cod}", ln=1)
     
-    st.session_state.pdf_bytes = pdf.output(dest='S').encode('latin-1')
-    st.session_state.current_cod = cod
+    try:
+        # Otteniamo l'output come stringa o bytes a seconda della versione
+        pdf_output = pdf.output(dest='S')
+        
+        if isinstance(pdf_output, str):
+            # Se è una stringa, la codifichiamo
+            st.session_state.pdf_bytes = pdf_output.encode('latin-1')
+        else:
+            # Se sono già bytes, li salviamo direttamente
+            st.session_state.pdf_bytes = bytes(pdf_output)
+            
+        st.session_state.current_cod = cod
+    except Exception as e:
+        st.error(f"Errore tecnico nella creazione del file PDF: {e}")
     
     # EXCEL
     try:
