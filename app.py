@@ -14,7 +14,7 @@ SMTP_SERVER = "out.postassl.it"
 SMTP_PORT = 465
 SENDER_EMAIL = "connessione@polisenergia.it"
 SENDER_PASSWORD = "Pratiche2026@" 
-
+MAIL_CC = "assistenza@polisenergia.it"
 # --- COSTANTI TECNICHE 2026 ---
 TIC_DOMESTICO_LE6 = 62.30  
 TIC_ALTRI_USI_BT = 78.81
@@ -113,7 +113,6 @@ def genera_pdf_polis(d):
     # --- FIRME ---
     pdf.set_y(-50)
     pdf.set_font("Arial", "", 8)
-    pdf.cell(95, 5, "Timbro e Firma PolisEnergia srl", 0, 0, 'L')
     pdf.cell(95, 5, "Firma per Accettazione Cliente", 0, 1, 'R')
     pdf.ln(10)
     pdf.line(140, pdf.get_y()+5, 200, pdf.get_y()+5) # Linea Cliente
@@ -271,6 +270,7 @@ if 'pdf_bytes' in st.session_state:
                         msg = MIMEMultipart()
                         msg['From'] = SENDER_EMAIL
                         msg['To'] = email_dest
+                        msg['Cc'] = MAIL_CC
                         msg['Subject'] = f"Preventivo PolisEnergia {st.session_state.current_cod}"
                         msg.attach(MIMEText(corpo_mail, 'plain'))
 
@@ -288,7 +288,7 @@ if 'pdf_bytes' in st.session_state:
                             server.login(SENDER_EMAIL, SENDER_PASSWORD)
                             server.send_message(msg)
             
-                        st.success(f"✅ Mail inviata correttamente tramite Aruba a {email_dest}!")
+                        st.success(f"✅ Mail inviata correttamente tramite Aruba a {email_dest} e in copia a {MAIL_CC}!")
                         st.balloons()
                 except Exception as e:
                      st.error(f"❌ Errore Aruba: {e}")
