@@ -226,7 +226,9 @@ else:
 
 # --- 3. ANTEPRIMA ---
 st.subheader("📊 Anteprima Calcolo")
-st.info(f"Logica: {format_franchigia(p_new)} (Nuova) - {format_franchigia(p_att)} (Attuale) = {delta_kw} kW fatturabili")
+if "Potenza" in pratica or "Subentro" in pratica or "Nuova" in pratica:
+    # Usiamo 'delta' (che è il nome definito nel calcolo) invece di 'delta_kw'
+    st.info(f"📊 **Logica Potenza:** {p_new} kW richiesti. Delta fatturabile: **{delta} kW**")
 
 col_tab1, col_tab2 = st.columns([2, 1])
 with col_tab1:
@@ -238,6 +240,21 @@ with col_tab2:
     st.metric("TOTALE", f"{totale:.2f} €")
 
 # --- 4. AZIONI (GENERA, ARCHIVIA) ---
+st.subheader("Riepilogo Parametri di Calcolo")
+col_r1, col_r2 = st.columns(2)
+
+with col_r1:
+    st.write(f"**Tipo Utenza:** {tipo_ut}")
+    st.write(f"**Tensione:** {'Media (MT)' if (t_partenza == 'MT' or passaggio_mt) else 'Bassa (BT)'}")
+
+with col_r2:
+    if "Spostamento" not in pratica:
+        st.write(f"**Delta Potenza:** {delta} kW")
+        st.write(f"**Tariffa applicata (€/kW):** {tar}")
+    else:
+        st.write(f"**Costo Fisso Spostamento:** {c_dist} €")
+
+st.divider()
 if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_width=True):
     cod = datetime.now().strftime("%y%m%d%H%M%S")
     
