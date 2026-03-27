@@ -204,6 +204,17 @@ if submit:
             'imponibile': imp, 'iva_perc': iva_p, 'iva_euro': iva_e, 'bollo': bollo, 'totale': tot
         }
         cod_pratica = f"BA{int(tot)}{st.session_state.seq}"
+        try:
+            pdf_generato = genera_pdf(dati_pdf, cod_pratica)
+            st.session_state.pdf_pronto = pdf_generato
+            st.session_state.codice_per_mail = cod_pratica
+            st.session_state.pratica_per_mail = pratica
+
+            st.success(f"✅ Preventivo {cod_pratica} generato!")
+        except Exception as e:
+            st.error(f"Errore generazione PDF: {e}")
+            
+        
         st.session_state.ultimo_codice = cod_pratica
         st.session_state.seq = (st.session_state.seq + 1) % 10 # Ciclo 0-9
         st.session_state.pdf_pronto = pdf_file
@@ -227,14 +238,29 @@ if submit:
 
         # IL TASTO DI CONFERMA FINALE
     if 'pdf_pronto' in st.session_state:
-        st.divider()
-        dest_mail = st.text_input("Email del cliente", key="mail_dest")
-        if st.button("🚀 INVIA ORA"):
-            # Chiamata alla funzione Aruba
-             successo = invia_preventivo_email(dest_mail, "Oggetto", "Testo", st.session_state.pdf_pronto, "file.pdf")
-             if successo:
-                st.balloons()
-                st.success("Inviata!")
+    st.divider()
+    st.subheader("✉️ Invia il preventivo via Email")
+    
+    # Recuperiamo i dati salvati
+    pdf_da_inviare = st.session_state.pdf_pronto
+    cod = st.session_state.codice_per_mail
+    tipo = st.session_state.pratica_per_mail
+    
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        dest_mail = st.text_input("Email Destinatario", key="mail_input")
+    with col2:
+        testo_mail = st.text_area("Messaggio", value=f"Gentile Cliente, in allegato il preventivo {cod}...")
+        
+    if st.button("🚀 INVIA ORA"):
+        if dest_mail:
+            with st.spinner("Connessione ai server Aruba in corso..."):
+                esito = invia_preventivo_email(dest_mail, f"Preventivo {cod}", testo_mail, pdf_da_inviare, f"{cod}.pdf")
+                if esito:
+                    st.balloons()
+                    st.success("Email inviata correttamente!")
+        else:
+            st.warning("Inserisci una mail valida.")
     # Generazione PDF
         try:
             pdf_file = genera_pdf(dati, cod_pratica)
