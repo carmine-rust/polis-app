@@ -193,7 +193,7 @@ else:
     delta = round(p_new - p_att, 1)
    # Se parte in MT, o se passa a MT, usiamo TIC_MT. Altrimenti Altri Usi BT.
     if t_partenza == "MT" or passaggio_mt:
-        tar = TIC_MT else TIC_ALTRI_USI_BT
+        tar = TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT
 
 if "Spostamento" in pratica:
     c_tec = c_dist
