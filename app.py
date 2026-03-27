@@ -14,6 +14,7 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
+if 'seq' not in st.session_state: st.session_state.seq = 0
 if 'pdf_pronto' not in st.session_state: st.session_state.pdf_pronto = None
 if 'ultimo_codice' not in st.session_state: st.session_state.ultimo_codice = "---"
 
