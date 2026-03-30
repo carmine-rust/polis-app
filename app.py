@@ -263,7 +263,14 @@ if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_widt
     st.success(f"Archiviato con codice {cod}")
 
 if 'pdf_bytes' in st.session_state:
-    st.download_button("📥 SCARICA PDF", data=st.session_state.pdf_bytes, file_name=f"{st.session_state.current_cod}.pdf", mime="application/pdf", use_container_width=True)
+    pdf_buffer = io.BytesIO(st.session_state.pdf_bytes)
+    st.download_button(label="📥 SCARICA PDF",
+        data=pdf_buffer, # Ora passiamo il buffer, non la variabile diretta
+        file_name=f"{st.session_state.current_cod}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+        key="btn_download_finale"
+    )
     
     st.divider()
     otp = str(random.randint(100000, 999999))
