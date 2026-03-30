@@ -86,7 +86,7 @@ if "otp" in query_params:
         else:
             st.error("❌ Codice OTP errato. Riprova.")
             
-    st.stop() # Interrompe l'app qui per il cliente
+st.stop() # Interrompe l'app qui per il cliente
 
     pdf_firmato = FPDF()
     pdf_firmato.add_page()
