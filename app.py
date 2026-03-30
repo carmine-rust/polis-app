@@ -228,13 +228,12 @@ if "otp" in query_params:
     if cod_u in df_c.values:
         idx = df_c[df_c == cod_u].index[0]
         importo_totale = float(df.at[idx, "Totale"])
-        st.warning(f"""
-    ### 💳 Istruzioni per il pagamento
-    Per rendere effettiva l'accettazione, è necessario effettuare il bonifico:
-    - **Importo da versare:** {importo_totale:.2f} EUR
-    - **IBAN:** `{IBAN_POLIS}`
-    - **Causale:** `Accettazione Preventivo {cod_u}`
-    """)
+        
+        st.warning(f"""### 💳 Istruzioni per il pagamento
+Per rendere effettiva l'accettazione, è necessario effettuare il bonifico:
+- **Importo da versare:** {importo_totale:.2f} EUR
+- **IBAN:** `{IBAN_POLIS}`
+- **Causale:** `Accettazione Preventivo {cod_u}`""")
     if st.button("✅ FIRMA ORA"):
             if otp_in.strip() == otp_u:
                 try:
