@@ -33,9 +33,9 @@ if "otp" in query_params:
             try:
                 # 1. Connessione e aggiornamento (Corretto 'gsheets')
                 conn = st.connection("gsheets", type=GSheetsConnection)
-                df = conn.read()
+                df = conn.read(ttl=0)
 
-                if codice_prev in df["Codice"].values:
+                if str(codice_prev).strip() in df["Codice"].astype(str).str.strip().values:
                     df.loc[df["Codice"] == codice_prev, "Stato"] = "ACCETTATO"
                     df.loc[df["Codice"] == codice_prev, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                     conn.update(data=df)
