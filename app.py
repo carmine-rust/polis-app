@@ -115,7 +115,7 @@ def genera_pdf_polis(d):
     pdf.set_font("helvetica", "", 9)
     pdf.cell(0, 6, "Il presente preventivo ha validita' di 30 giorni.", ln=True)
     
-    return pdf.output()
+    return pdf.output(dest='S')
 
 # --- VISTA CLIENTE (FIRMA) ---
 query_params = st.query_params
@@ -132,14 +132,16 @@ if "otp" in query_params:
                 df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
                 if cod_u in df_c.values:
                     idx = df_c[df_c == cod_u].index[0]
+                    nome_cliente = df.at[idx, "Cliente"]
                     df.at[idx, "Stato"] = "ACCETTATO"
                     df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                     conn.update(data=df)
                     st.success("Firmato!"); st.balloons()
                     # Notifica a Carmine
                     msg = MIMEMultipart(); msg['From'] = SENDER_EMAIL; msg['To'] = SENDER_EMAIL; msg['cc'] = MAIL_CC
-                    msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente_da_db}"
-                    msg.attach(MIMEText(f"Il cliente {nome_cliente_da_db} ha accettato preventivo {cod_u}.", 'plain'))
+                    msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente}"
+                    msg.attach(MIMEText(f"Il cliente {nome_cliente} ha accettato preventivo {cod_u}.", 'plain'))
+                    msg.attach(MIMEText(testo_notifica, 'plain'))
                     with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
                         s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
                 else: st.error("Non trovato.")
@@ -234,7 +236,7 @@ if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_widt
     st.success(f"Archiviato con codice {cod}")
 
 if 'pdf_bytes' in st.session_state:
-    st.download_button("📥 SCARICA PDF", data=st.session_state.pdf_bytes, file_name=f"{st.session_state.current_cod}.pdf", use_container_width=True)
+    st.download_button("📥 SCARICA PDF", data=st.session_state.pdf_bytes, file_name=f"{st.session_state.current_cod}.pdf", mime="application/pdf", use_container_width=True)
     
     st.divider()
     otp = str(random.randint(100000, 999999))
