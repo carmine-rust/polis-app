@@ -11,7 +11,7 @@ from email.mime.application import MIMEApplication
 
 # --- CONFIGURAZIONE SMTP ---
 SMTP_SERVER = st.secrets["EMAIL_SERVER"]
-SMTP_PORT = st.secrets["EMAIL_PORT]
+SMTP_PORT = st.secrets["EMAIL_PORT"]
 SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
 SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 MAIL_CC = st.secrets["EMAIL_CC"]
