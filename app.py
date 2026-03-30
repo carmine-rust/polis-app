@@ -10,52 +10,52 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 query_params = st.query_params
-    if "otp" in query_params:
-        # --- QUESTA È LA VISTA CHE VEDRÀ IL CLIENTE CLICCANDO DAL LINK ---
-        st.title("Accettazione Preventivo Online")
-        codice_prev = query_params.get("codice", "N/D")
-        otp_corretto = query_params.get("otp", "")
+if "otp" in query_params:
+    # --- QUESTA È LA VISTA CHE VEDRÀ IL CLIENTE CLICCANDO DAL LINK ---
+    st.title("Accettazione Preventivo Online")
+    codice_prev = query_params.get("codice", "N/D")
+    otp_corretto = query_params.get("otp", "")
 
-        st.info(f"Stai confermando il preventivo:**{codice_prev}**")
-        otp.input = st.text.input("Inserisci il codice OTP ricevuto via mail", max_chars=6)
+    st.info(f"Stai confermando il preventivo:**{codice_prev}**")
+    otp.input = st.text.input("Inserisci il codice OTP ricevuto via mail", max_chars=6)
 
     
-        if st.button("✅ ACCETTA E FIRMA ORA"):
-            if otp_input == otp_corretto:
-                try:
-                    conn = st.connection("gsheest", type=GSheetsConnection)
-                    df = conn.read()
+    if st.button("✅ ACCETTA E FIRMA ORA"):
+        if otp_input == otp_corretto:
+            try:
+                conn = st.connection("gsheest", type=GSheetsConnection)
+                df = conn.read()
 
-                if codice_prev in df["Codice"].values:
-                    df.loc[df["Codice"] == codice_prev, "Stato"] = "ACCETTATO"
-                    df.loc[df["Codice"] == codice_prev, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+            if codice_prev in df["Codice"].values:
+                df.loc[df["Codice"] == codice_prev, "Stato"] = "ACCETTATO"
+                df.loc[df["Codice"] == codice_prev, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-                    conn.update(data=df)
-                st.success("🎉 Preventivo firmato con successo! Riceverai una mail di conferma.")
-                st.balloons()
+                conn.update(data=df)
+            st.success("🎉 Preventivo firmato con successo! Riceverai una mail di conferma.")
+            st.balloons()
 
-            msg_notifica = MIMEMultipart()
-            msg_notifica['From'] = SENDER_EMAIL
-            msg_notifica['To'] = SENDER_EMAIL
-            msg_notifica["cc"] = MAIL_CC
-            msg_notifica['Subject'] = f"🔔 NOTIFICA: Preventivo {codice_prev} ACCETTATO"
+        msg_notifica = MIMEMultipart()
+        msg_notifica['From'] = SENDER_EMAIL
+        msg_notifica['To'] = SENDER_EMAIL
+        msg_notifica["cc"] = MAIL_CC
+        msg_notifica['Subject'] = f"🔔 NOTIFICA: Preventivo {codice_prev} ACCETTATO"
 
-            corpo_notifica = f"Il cliente ha appena firmato il preventivo {codice_prev} tramite OTP."
-            msg_notifica.attach(MIMEText(corpo_notifica, 'plain'))
+        corpo_notifica = f"Il cliente ha appena firmato il preventivo {codice_prev} tramite OTP."
+        msg_notifica.attach(MIMEText(corpo_notifica, 'plain'))
 
-            with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context_notifica) as server:
-                server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                server.send_message(msg_notifica)
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context_notifica) as server:
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.send_message(msg_notifica)
 
-            st.download_button(label="📥 SCARICA RICEVUTA", ...)
-        except Expection as e:
-            st.error(f"Errore: {e}")
-            else:
-                st.error("Errore: Preventivo non trovato nel database")
-        except Expection as e:
-            st.error(f"Errore tecnico: {e}")
-    else
-        st.error("❌ Codice OTP errato.")
+        st.download_button(label="📥 SCARICA RICEVUTA", ...)
+    except Expection as e:
+        st.error(f"Errore: {e}")
+        else:
+            st.error("Errore: Preventivo non trovato nel database")
+    except Expection as e:
+        st.error(f"Errore tecnico: {e}")
+else
+    st.error("❌ Codice OTP errato.")
 st.stop()
 
     pdf_firmato = FPDF()
