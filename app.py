@@ -9,6 +9,75 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
+query_params = st.query_params
+
+    if "otp" in query_params:
+        # --- QUESTA È LA VISTA CHE VEDRÀ IL CLIENTE CLICCANDO DAL LINK ---
+        st.title("Accettazione Preventivo Online")
+        codice_prev = query_params.get("codice", "N/D")
+        otp_corretto = query_params.get("otp", "")
+
+        st.info(f"Stai confermando il preventivo:**{codice_prev}**")
+        otp.input = st.text.input("Inserisci il codice OTP ricevuto via mail", max_chars=6)
+
+    
+        if st.button("✅ ACCETTA E FIRMA ORA"):
+            if otp_input == otp_corretto:
+                try:
+                    conn = st.connection("gsheest", type=GSheetsConnection)
+                    df = conn.read()
+
+                if codice_prev in df["Codice"].values:
+                    df.loc[df["Codice"] == codice_prev, "Stato"] = "ACCETTATO"
+                    df.loc[df["Codice"] == codice_prev, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+                    conn.update(data=df)
+                st.success("🎉 Preventivo firmato con successo! Riceverai una mail di conferma.")
+                st.balloons()
+
+            msg_notifica = MIMEMultipart()
+            msg_notifica['From'] = SENDER_EMAIL
+            msg_notifica['To'] = SENDER_EMAIL
+            msg_notifica["cc"] = MAIL_CC
+            msg_notifica['Subject'] = f"🔔 NOTIFICA: Preventivo {codice_prev} ACCETTATO"
+
+            corpo_notifica = f"Il cliente ha appena firmato il preventivo {codice_prev} tramite OTP."
+            msg_notifica.attach(MIMEText(corpo_notifica, 'plain'))
+
+            with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context_notifica) as server:
+                server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                server.send_message(msg_notifica)
+
+            st.download_button(label="📥 SCARICA RICEVUTA", ...)
+        except Expection as e:
+            st.error(f"Errore: {e}")
+            else:
+                st.error("Errore: Preventivo non trovato nel database")
+        except Expection as e:
+            st.error(f"Errore tecnico: {e}")
+    else
+        st.error("❌ Codice OTP errato.")
+st.stop()
+
+    pdf_firmato = FPDF()
+    pdf_firmato.add_page()
+    pdf_firmato.set_font("Arial", "B", 16)
+    pdf_firmato.cell(0, 10, f"CONFERMA ACCETTAZIONE PREVENTIVO {codice_prev}", ln=1, align='C')
+
+    pdf_firmato.ln(10)
+    pdf_firmato.set_font("Arial","",12)
+    pdf_firmato.multi_cell(0, 10, f"""Il presente documento attesta che il cliente ha accettato i termini del preventivo in data {datetime.now().strftime('%d/%m/%Y')} alle ore {datetime.now().strftime('%H:%M')}.
+Validazione tramite OTP: {otp_input}
+Stato: FIRMATO ELETTRONICAMENTE""")
+    pdf_output = pdf_firmato.output(dest="S").encode('latin-1')
+
+    st.download_button(
+        label='📥 Scarica la tua ricevuta di firma (PDF)",
+        data=pdf.output,
+        file_name=f"Ricevuta_Firma_{codice_prev}.pdf",
+        mime="application/pdf"
+)
+    
 # --- CONFIGURAZIONE SMTP ---
 SMTP_SERVER = st.secrets["EMAIL_SERVER"]
 SMTP_PORT = st.secrets["EMAIL_PORT"]
@@ -309,53 +378,78 @@ if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_w
     st.session_state.seq += 1
 
 # --- 5. MAIL (COMPARE SOLO SE IL PDF È STATO GENERATO) ---
+# --- 5. MAIL CON LOGICA DI FIRMA AUTOMATICA ---
 if 'pdf_bytes' in st.session_state:
     st.divider()
-    st.subheader("✉️ 2. Invio Email e Download")
+    st.subheader("✉️ 2. Invio Email per Accettazione Automatica")
     
-    # Prepariamo il messaggio predefinito
-    testo_predefinito = f"Gentile cliente,\nin allegato trasmettiamo il preventivo {st.session_state.current_cod}.\nRestiamo a disposizione per ogni chiarimento.\n\nCordiali saluti,\nPolisEnergia srl"
+    # 1. Generiamo l'OTP e il link (se non già presenti in sessione)
+    if 'current_otp' not in st.session_state:
+        st.session_state.current_otp = str(random.randint(100000, 999999))
     
-    # Box di testo modificabile
-    corpo_mail = st.text_area("Modifica il testo della mail:", value=testo_predefinito, height=150)
+    # Indirizzo della tua app pubblicata (cambialo con quello reale)
+    url_app = "https://polis-app.streamlit.app/" 
+    # Creiamo il link magico
+    link_firma = f"{url_app}?codice={st.session_state.current_cod}&otp={st.session_state.current_otp}"
+    
+    # 2. Prepariamo il messaggio con il link
+    testo_predefinito = (
+        f"Gentile cliente,\n"
+        f"in allegato trasmettiamo il preventivo {st.session_state.current_cod}.\n\n"
+        f"Puoi accettare e firmare il preventivo in un click cliccando qui:\n"
+        f"{link_firma}\n\n"
+        f"Codice di sicurezza OTP: {st.session_state.current_otp}\n\n"
+        f"Restiamo a disposizione per ogni chiarimento.\n"
+        f"PolisEnergia srl"
+    )
+    
+    corpo_mail = st.text_area("Modifica il testo della mail:", value=testo_predefinito, height=200)
     
     c_btn1, c_btn2 = st.columns(2)
     
     with c_btn1:
-        if st.button("📧 INVIA ORA AL CLIENTE", use_container_width=True):
-            # Controllo se l'email del destinatario esiste
+        if st.button("📧 INVIA ORA E ATTIVA FIRMA", use_container_width=True):
             if not email_dest or "@" not in email_dest:
-                st.error("❌ Errore: Inserisci un indirizzo email valido nel campo 'Email Cliente' in alto.")
+                st.error("❌ Inserisci un indirizzo email valido.")
             else:
                 try:
-                    with st.spinner("Connessione al server Aruba in corso..."):
-                        # Creazione messaggio (rimane uguale a prima)
+                    with st.spinner("Invio in corso..."):
+                        # --- A. SALVATAGGIO SU GSHEETS (Ponte per l'automazione) ---
+                        # Salviamo l'OTP nel foglio così l'app lo "riconoscerà" quando il cliente clicca
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        df = conn.read()
+                        nuova_riga = pd.DataFrame([{
+                            "Data": datetime.now().strftime("%d/%m/%Y"),
+                            "Codice": st.session_state.current_cod,
+                            "Cliente": nome,
+                            "Email": email_dest,
+                            "OTP": st.session_state.current_otp,
+                            "Stato": "Inviato"
+                        }])
+                        conn.update(data=pd.concat([df, nuova_riga], ignore_index=True))
+
+                        # --- B. INVIO EMAIL (Aruba) ---
                         msg = MIMEMultipart()
                         msg['From'] = SENDER_EMAIL
                         msg['To'] = email_dest
                         msg['Cc'] = MAIL_CC
-                        msg['Subject'] = f"Preventivo PolisEnergia {st.session_state.current_cod}"
+                        msg['Subject'] = f"FIRMA ELETTRONICA: Preventivo {st.session_state.current_cod}"
                         msg.attach(MIMEText(corpo_mail, 'plain'))
 
-                        # Allegato PDF (rimane uguale)
                         filename = f"{st.session_state.current_cod}.pdf"
                         part = MIMEApplication(st.session_state.pdf_bytes, Name=filename)
                         part['Content-Disposition'] = f'attachment; filename="{filename}"'
                         msg.attach(part)
 
-                        # --- LOGICA SPECIFICA ARUBA (Porta 465 SSL) ---
                         import ssl
                         context = ssl.create_default_context()
-        
                         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
                             server.login(SENDER_EMAIL, SENDER_PASSWORD)
                             server.send_message(msg)
-            
-                        st.success(f"✅ Mail inviata correttamente tramite Aruba a {email_dest} e in copia a {MAIL_CC}!")
-                        st.balloons()
+                        
+                        st.success("✅ Preventivo inviato! Ora il cliente può firmare autonomamente dal link.")
                 except Exception as e:
-                     st.error(f"❌ Errore Aruba: {e}")
-                     st.warning("Verifica se la porta 465 è corretta o prova la 587 con starttls.")
+                    st.error(f"❌ Errore: {e}")
     
     with c_btn2:
         # Tasto Download sempre disponibile
