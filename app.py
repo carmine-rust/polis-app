@@ -154,7 +154,7 @@ if "otp" in query_params:
     st.warning(f"""
     ### 💳 Istruzioni per il pagamento
     Per rendere effettiva l'accettazione, è necessario effettuare il bonifico:
-    - **Importo da versare:** {d_cliente['Totale']:.2f} EUR
+    - **Importo da versare:** {importo_totale:.2f} EUR
     - **IBAN:** `{IBAN_POLIS}`
     - **Causale:** `Accettazione Preventivo {cod_u}`
     """)
