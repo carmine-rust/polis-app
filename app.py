@@ -17,51 +17,51 @@ from email.mime.application import MIMEApplication
 st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
 
 # Nasconde il menù di Streamlit per tutti gli utenti
-primary_blue = "#004a99"  # Blu istituzionale Polis Energia
+# Definiamo tutto lo stile in un unico blocco
+primary_blue = "#004a99" 
 
 hide_st_style = f"""
-            <style>
-            /* Sfondo dell'intera pagina */
-            .stApp {{
-                background-color: {primary_blue};
-            }}
+    <style>
+    /* 1. SFONDO PAGINA */
+    .stApp {{
+        background-color: {primary_blue};
+    }}
 
-            /* Nasconde i menu di sistema */
-            #MainMenu {{visibility: hidden;}}
-            footer {{visibility: hidden;}}
-            header {{visibility: hidden;}}
+    /* 2. TESTI BIANCHI */
+    h1, h2, h3, p, span, label, .stMarkdown {{
+        color: white !important;
+    }}
 
-            /* Testi in bianco per contrasto sullo sfondo blu */
-            h1, h2, h3, p, span, label, .stMarkdown {{
-                color: white !important;
-            }}
+    /* 3. INPUT BIANCHI CON TESTO NERO */
+    .stTextInput>div>div>input {{
+        background-color: white !important;
+        color: black !important;
+    }}
 
-            /* Tasti Bianchi con testo Blu (stile moderno) */
-            .stButton>button {{
-                background-color: white !important;
-                color: {primary_blue} !important;
-                border-radius: 8px !important;
-                border: none !important;
-                font-weight: bold !important;
-                height: 3em !important;
-                width: 100% !important;
-            }}
-            
-            /* Box dei messaggi e input (devono rimanere chiari per leggibilità) */
-            .stAlert {{
-                background-color: #f8f9fa !important;
-                color: black !important;
-            }}
-            
-            div[data-baseweb="input"] > div {{
-                background-color: white !important;
-            }}
-            
-            input {{
-                color: black !important;
-            }}
-            </style>
-            """
+    /* 4. IL TUO PUNTO 4: TASTO VERDE */
+    div.stButton > button:first-child {{
+        background-color: #28a745 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: 2px solid #28a745 !important;
+        font-weight: bold !important;
+        height: 3em !important;
+        width: 100% !important;
+        transition: 0.3s !important;
+    }}
+
+    /* EFFETTO HOVER SUL TASTO VERDE */
+    div.stButton > button:first-child:hover {{
+        background-color: #218838 !important;
+        border-color: #1e7e34 !important;
+        transform: scale(1.02);
+    }}
+
+    /* 5. NASCONDI MENU SISTEMA */
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    </style>
 
 # 3. APPLICA LO STILE
 st.markdown(hide_st_style, unsafe_allow_html=True)
