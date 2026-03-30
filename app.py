@@ -17,7 +17,7 @@ if "otp" in query_params:
     st.title("🖋️ Accettazione Preventivo Online")
     
     codice_prev = query_params.get("codice", "N/D")
-    otp_corretto = query_params.get("otp", "")
+    otp_corretto = str(query_params.get("otp", ""))
 
     st.info(f"Stai confermando il preventivo: **{codice_prev}**")
     
@@ -25,7 +25,7 @@ if "otp" in query_params:
     otp_input = st.text_input("Inserisci il codice OTP ricevuto via mail", max_chars=6)
 
     if st.button("✅ ACCETTA E FIRMA ORA"):
-        if otp_input == otp_corretto:
+        if str(otp_input) == otp_corretto:
             try:
                 # 1. Connessione e aggiornamento (Corretto 'gsheets')
                 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -38,6 +38,7 @@ if "otp" in query_params:
                     
                     st.success("🎉 Preventivo firmato con successo!")
                     st.balloons()
+                    
 
                     # 2. Generazione PDF Ricevuta
                     pdf_firmato = FPDF()
