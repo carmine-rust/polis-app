@@ -10,7 +10,10 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-query_params = st.query_params
+try:
+    query_params = st.query_params
+except:
+    query_params = {}
 
 if "otp" in query_params:
     # --- VISTA CLIENTE ---
