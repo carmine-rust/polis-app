@@ -108,6 +108,17 @@ def genera_pdf_polis(d):
     pdf.cell(0, 6, f"Bonifico Bancario IBAN: {d['IBAN']}", ln=1)
     pdf.set_font("Arial", "B", 10)
     pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", ln=1)
+
+    # --- NOTE ---
+    pdf.ln(18)
+    pdf.set_font("Arial", ""; 6)
+    pdf.cell(0,6, " L'esecuzione della prestazione è pertanto subordinata al verificarsi delle seguenti condizioni:", ln=1)
+    pdf.set_font("Arial"; "", 6)
+    pdf.cell(0, 6, "- conferma della proposta perventua entro 30 gg dalla presente richiesta;", ln=0,5)
+    pdf.set_font("Arial"; "", 6)
+    pdf.cell(0, 6, "- in caso di consegna della specifica tecnica, comunicazione dell'avvenuto completamento delle eventuali opere e/o concessioni,autorizzazioni, servitù a cura del cliente finale." , ln=0,5)
+    pdf.set_font("Arial"; "", 6)
+    pdf.cell(0, 6, "Tale preventivo, opportunamente sottoscritto, dovrà essere inviato tramite mail all'indirizzo assistenza@polisenergia.it"; ln=1)
     
     # --- FIRME ---
     pdf.set_y(-50)
