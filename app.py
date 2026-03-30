@@ -10,11 +10,12 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 # --- CONFIGURAZIONE SMTP ---
-SMTP_SERVER = "out.postassl.it"
-SMTP_PORT = 465
-SENDER_EMAIL = "connessione@polisenergia.it"
-SENDER_PASSWORD = "Pratiche2026@" 
-MAIL_CC = "assistenza@polisenergia.it"
+SMTP_SERVER = st.secrets["EMAIL_SERVER"]
+SMTP_PORT = st.secrets["EMAIL_PORT]
+SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
+SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+MAIL_CC = st.secrets["EMAIL_CC"]
+
 # --- COSTANTI TECNICHE 2026 ---
 TIC_DOMESTICO_LE6 = 62.30  
 TIC_ALTRI_USI_BT = 78.81
