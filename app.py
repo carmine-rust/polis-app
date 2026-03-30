@@ -252,7 +252,7 @@ with col_t2:
 if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True):
     cod = datetime.now().strftime("%y%m%d%H%M%S")
     st.session_state.current_cod = cod
-    st.session_state.pdf_bytes = genera_pdf_polis({"Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo, "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, "Totale": totale})
+    st.session_state.pdf_bytes = genera_pdf_polis({"Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo, "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, "Totale": totale, "IBAN": IBAN_POLIS})
     
     # Salva GSheets
     conn = st.connection("gsheets", type=GSheetsConnection)
