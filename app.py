@@ -111,7 +111,7 @@ def genera_pdf_polis(d):
 
     # --- NOTE ---
     pdf.ln(18)
-    pdf.set_font("Arial", ""; 6)
+    pdf.set_font("Arial", "", 6)
     pdf.cell(0,6, " L'esecuzione della prestazione è pertanto subordinata al verificarsi delle seguenti condizioni:", ln=1)
     pdf.set_font("Arial"; "", 6)
     pdf.cell(0, 6, "- conferma della proposta perventua entro 30 gg dalla presente richiesta;", ln=0,5)
