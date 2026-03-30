@@ -14,6 +14,18 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 # --- CONFIGURAZIONE E COSTANTI ---
+st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
+
+# Nasconde il menù di Streamlit per tutti gli utenti
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_content_allowed=True)
+
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
 TIC_DOMESTICO_LE6 = 62.30  
