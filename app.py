@@ -27,7 +27,7 @@ hide_st_style = """
 st.markdown(hide_st_style, unsafe_content_allowed=True)
 
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
-
+st.image("logo_polis.png", width=250)
 TIC_DOMESTICO_LE6 = 62.30  
 TIC_ALTRI_USI_BT = 78.81
 TIC_MT = 62.74
