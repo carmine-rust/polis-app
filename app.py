@@ -42,7 +42,7 @@ def genera_pdf_polis(d):
         pdf.set_xy(10, 12)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Arial", "B", 18)
-        pdf.cell(0, 10, "POLIS ENERGIA SRL")
+        pdf.cell(0, 10, "PolisEnergia srl")
     
     # Dati Aziendali in Bianco
     pdf.set_xy(120, 10)
