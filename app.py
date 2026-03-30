@@ -71,7 +71,7 @@ Stato: FIRMATO ELETTRONICAMENTE""")
     pdf_output = pdf_firmato.output(dest="S").encode('latin-1')
 
     st.download_button(
-        label='📥 Scarica la tua ricevuta di firma (PDF)",
+        label='📥 Scarica la tua ricevuta di firma (PDF)',
         data=pdf.output,
         file_name=f"Ricevuta_Firma_{codice_prev}.pdf",
         mime="application/pdf"
