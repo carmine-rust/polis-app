@@ -110,7 +110,7 @@ def genera_pdf_polis(d):
     pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", ln=1)
 
     # --- NOTE ---
-    pdf.ln(16)
+    pdf.ln(15)
     pdf.set_font("Arial", "", 6)
     pdf.cell(0,4, " L'esecuzione della prestazione è pertanto subordinata al verificarsi delle seguenti condizioni:", ln=1)
     pdf.set_font("Arial", "", 6)
