@@ -10,7 +10,6 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 query_params = st.query_params
-
     if "otp" in query_params:
         # --- QUESTA È LA VISTA CHE VEDRÀ IL CLIENTE CLICCANDO DAL LINK ---
         st.title("Accettazione Preventivo Online")
