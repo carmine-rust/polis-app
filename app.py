@@ -118,7 +118,7 @@ def genera_pdf_polis(d):
     pdf.set_font("Arial", "", 6)
     pdf.cell(0, 6, "- in caso di consegna della specifica tecnica, comunicazione dell'avvenuto completamento delle eventuali opere e/o concessioni,autorizzazioni, servitù a cura del cliente finale." , ln=1)
     pdf.set_font("Arial", "", 6)
-    pdf.cell(0, 6, "Tale preventivo, opportunamente sottoscritto, dovrà essere inviato tramite mail all'indirizzo assistenza@polisenergia.it"; ln=1)
+    pdf.cell(0, 6, "Tale preventivo, opportunamente sottoscritto, dovrà essere inviato tramite mail all'indirizzo assistenza@polisenergia.it", ln=1)
     
     # --- FIRME ---
     pdf.set_y(-50)
