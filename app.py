@@ -229,10 +229,10 @@ if "otp" in query_params:
         idx = df_c[df_c == cod_u].index[0]
         importo_totale = float(df.at[idx, "Totale"])
 
-            # SCRITTO COSÌ NON PUÒ DARE ERRORE DI SINTASSI
-            messaggio_bonifico = f"### 💳 Istruzioni per il pagamento\nPer rendere effettiva l'accettazione, è necessario effettuare il bonifico di **{importo_totale:.2f} EUR**.\n\n**IBAN:** `{IBAN_POLIS}`\n**Causale:** `Accettazione Preventivo {cod_u}`"
+        # SCRITTO COSÌ NON PUÒ DARE ERRORE DI SINTASSI
+        messaggio_bonifico = f"### 💳 Istruzioni per il pagamento\nPer rendere effettiva l'accettazione, è necessario effettuare il bonifico di **{importo_totale:.2f} EUR**.\n\n**IBAN:** `{IBAN_POLIS}`\n**Causale:** `Accettazione Preventivo {cod_u}`"
             
-            st.warning(messaggio_bonifico)
+        st.warning(messaggio_bonifico)
     if st.button("✅ FIRMA ORA"):
             if otp_in.strip() == otp_u:
                 try:
