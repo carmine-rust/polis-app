@@ -225,8 +225,8 @@ if "otp" in query_params:
             importo_totale = 0.0
     
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
-    importo_totale = float(df.at[idx, "Totale"])
-    st.warning(f"""
+        importo_totale = float(df.at[idx, "Totale"])
+        st.warning(f"""
     ### 💳 Istruzioni per il pagamento
     Per rendere effettiva l'accettazione, è necessario effettuare il bonifico:
     - **Importo da versare:** {importo_totale:.2f} EUR
