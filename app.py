@@ -151,7 +151,7 @@ if "otp" in query_params:
     cod_u = str(query_params.get("codice", "")).strip()
     otp_u = str(query_params.get("otp", "")).strip()
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
-    if st.button("✅ FIRMA ORA"):
+if st.button("✅ FIRMA ORA"):
         if otp_in.strip() == otp_u:
             try:
                 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -160,20 +160,36 @@ if "otp" in query_params:
                 if cod_u in df_c.values:
                     idx = df_c[df_c == cod_u].index[0]
                     nome_cliente = df.at[idx, "Cliente"]
+                    
+                    # Aggiornamento Database
                     df.at[idx, "Stato"] = "ACCETTATO"
                     df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                     conn.update(data=df)
-                    st.success("Firmato!"); st.balloons()
+                    
                     # Notifica a Carmine
-                    msg = MIMEMultipart(); msg['From'] = SENDER_EMAIL; msg['To'] = SENDER_EMAIL; msg['cc'] = MAIL_CC
+                    msg = MIMEMultipart()
+                    msg['From'] = SENDER_EMAIL
+                    msg['To'] = SENDER_EMAIL
+                    msg['cc'] = MAIL_CC
                     msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente}"
-                    msg.attach(MIMEText(f"Il cliente {nome_cliente} ha accettato preventivo {cod_u}.", 'plain'))
-                    msg.attach(MIMEText(testo_notifica, 'plain'))
+                    
+                    # Costruiamo il testo e lo attacchiamo una volta sola
+                    corpo_mail = f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}."
+                    msg.attach(MIMEText(corpo_mail, 'plain'))
+                    
+                    # Invio Mail
                     with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
-                        s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
-                else: st.error("Non trovato.")
-            except Exception as e: st.error(f"Errore: {e}")
-        else: st.error("OTP errato.")
+                        s.login(SENDER_EMAIL, SENDER_PASSWORD)
+                        s.send_message(msg)
+                    
+                    st.success("Firmato!")
+                    st.balloons()
+                else: 
+                    st.error("Non trovato.")
+            except Exception as e: 
+                st.error(f"Errore: {e}")
+        else: 
+            st.error("OTP errato.")
     st.stop()
 
 # --- VISTA CARMINE ---
