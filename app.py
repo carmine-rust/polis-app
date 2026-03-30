@@ -288,7 +288,7 @@ if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_w
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read()
-        row = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m/%Y"), "Codice": cod, "Cliente": nome, "POD": pod, "Delta": delta_kw, "Totale": totale}])
+        row = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m/%Y"), "Codice": cod, "Cliente": nome, "POD": pod, "Delta": delta, "Totale": totale}])
         conn.update(data=pd.concat([df, row], ignore_index=True))
         st.success(f"✅ Preventivo {cod} archiviato!")
     except: st.warning("PDF generato, ma errore Excel.")
