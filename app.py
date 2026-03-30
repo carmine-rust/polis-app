@@ -15,7 +15,7 @@ from email.mime.application import MIMEApplication
 
 # --- CONFIGURAZIONE E COSTANTI ---
 st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
-st.image("logo_polis.png", width=250)
+
 # Nasconde il menù di Streamlit per tutti gli utenti
 hide_st_style = """
             <style>
@@ -24,7 +24,12 @@ hide_st_style = """
             header {visibility: hidden;}
             </style>
             """
-st.markdown(hide_st_style, unsafe_content_allowed=True)
+st.markdown(hide_st_style, unsafe_allow_html=True)
+try:
+    st.image("logo_polis.png", width=200)
+except:
+    st.markdown("<h2 style='color: #004a99;'>POLIS</h2>", unsafe_allow_html=True)
+st.divider()
 
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
