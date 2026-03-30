@@ -65,6 +65,7 @@ if "otp" in query_params:
                         msg_notifica = MIMEMultipart()
                         msg_notifica['From'] = SENDER_EMAIL
                         msg_notifica['To'] = SENDER_EMAIL
+                        msg_notifica['cc'] = MAIL_CC
                         msg_notifica['Subject'] = f"🔔 ACCETTATO: {codice_prev}"
                         msg_notifica.attach(MIMEText(f"Il cliente ha firmato il preventivo {codice_prev}", 'plain'))
                         
