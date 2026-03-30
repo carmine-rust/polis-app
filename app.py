@@ -238,16 +238,43 @@ elif "Spostamento" in pratica:
     s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
     c_dist = SPOSTAMENTO_10MT if "Entro" in s_dist else st.number_input("Costo Rilievo €", 0.0, key="sdc")
 
+# --- NUOVA LOGICA LIMITATORE / FRANCHIGIA ---
+limitatore = False
+if tipo_ut == "Altri Usi" and 15 < p_new <= 30:
+    # Il flag appare solo in questa condizione ed è attivo di default
+    limitatore = st.checkbox("Abilita Limitatore (Franchigia +10%)", value=True, key="lim_flag")
+
 # Logica Potenza
 if p_new > 0:
+    # Caso 1: Potenza <= 30 kW
     if p_new <= 30:
-        v_new, v_att = round(p_new * 1.1, 1), round(p_att * 1.1, 1) if p_att > 0 else 0.0
+        # Applichiamo la franchigia del 10% (es. 20 -> 22) SOLO SE:
+        # - È Domestico 
+        # - OPPURE è Altri Usi e il flag limitatore è attivo
+        if tipo_ut == "Domestico" or (tipo_ut == "Altri Usi" and limitatore):
+            v_new = round(p_new * 1.1, 1)
+            v_att = round(p_att * 1.1, 1) if p_att > 0 else 0.0
+        else:
+            # Altri Usi SENZA limitatore: calcolo netto
+            v_new = p_new
+            v_att = p_att
+            
         delta = round(v_new - v_att, 1)
-        tar = TIC_DOMESTICO_LE6 if (tipo_ut == "Domestico" and p_new <= 6) else (TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT)
+        
+        # Selezione Tariffa TIC
+        if (tipo_ut == "Domestico" and p_new <= 6):
+            tar = TIC_DOMESTICO_LE6
+        elif (t_partenza == "MT" or passaggio_mt):
+            tar = TIC_MT
+        else:
+            tar = TIC_ALTRI_USI_BT
+            
+    # Caso 2: Potenza > 30 kW (Sempre calcolo netto)
     else:
         delta = round(p_new - p_att, 1)
         tar = TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT
 
+# Calcoli Economici Finali
 c_tec = c_dist if "Spostamento" in pratica else round(delta * tar, 2)
 if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
 if "Nuova" in pratica: c_tec += c_dist
