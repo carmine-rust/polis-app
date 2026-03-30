@@ -2,6 +2,7 @@ import streamlit as st
 import math
 import pandas as pd
 import random
+import io
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
