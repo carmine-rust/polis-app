@@ -190,7 +190,7 @@ if st.button("✅ FIRMA ORA"):
                 st.error(f"Errore: {e}")
         else: 
             st.error("OTP errato.")
-    st.stop()
+st.stop()
 
 # --- VISTA CARMINE ---
 st.title("⚡ PolisEnergia - Gestione Preventivi")
