@@ -150,6 +150,19 @@ if "otp" in query_params:
     st.title("🖋️ Accettazione Online")
     cod_u = str(query_params.get("codice", "")).strip()
     otp_u = str(query_params.get("otp", "")).strip()
+    
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(ttl=0)
+    df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+
+    if cod_u in df_c.values:
+        idx = df_c[df_c == cod_u].index[0]
+        try:
+            valore_totale = df.at[idx, "Totale"]
+            importo_totale = float(valore_totale)
+        except:
+            importo_totale = 0.0
+    
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
     importo_totale = float(df.at[idx, "Totale"])
     st.warning(f"""
