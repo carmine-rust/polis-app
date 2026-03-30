@@ -141,7 +141,7 @@ def genera_pdf_polis(d):
     pdf.line(140, pdf.get_y()+5, 200, pdf.get_y()+5) # Linea Cliente
     
     # rimosso dest='S', fpdf2 gestisce l'output come byte stream
-    return bytes(pdf.output(), encoding='latin-1')
+    return pdf.output()
 
 # --- VISTA CLIENTE (FIRMA) ---
 query_params = st.query_params
