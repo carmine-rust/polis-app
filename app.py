@@ -10,53 +10,82 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 query_params = st.query_params
+
 if "otp" in query_params:
-    # --- QUESTA È LA VISTA CHE VEDRÀ IL CLIENTE CLICCANDO DAL LINK ---
-    st.title("Accettazione Preventivo Online")
+    # --- VISTA CLIENTE ---
+    st.title("🖋️ Accettazione Preventivo Online")
+    
     codice_prev = query_params.get("codice", "N/D")
     otp_corretto = query_params.get("otp", "")
 
-    st.info(f"Stai confermando il preventivo:**{codice_prev}**")
-    otp.input = st.text.input("Inserisci il codice OTP ricevuto via mail", max_chars=6)
-
+    st.info(f"Stai confermando il preventivo: **{codice_prev}**")
     
+    # Corretto: otp_input (variabile) e st.text_input (funzione)
+    otp_input = st.text_input("Inserisci il codice OTP ricevuto via mail", max_chars=6)
+
     if st.button("✅ ACCETTA E FIRMA ORA"):
         if otp_input == otp_corretto:
             try:
-                conn = st.connection("gsheest", type=GSheetsConnection)
+                # 1. Connessione e aggiornamento (Corretto 'gsheets')
+                conn = st.connection("gsheets", type=GSheetsConnection)
                 df = conn.read()
 
-            if codice_prev in df["Codice"].values:
-                df.loc[df["Codice"] == codice_prev, "Stato"] = "ACCETTATO"
-                df.loc[df["Codice"] == codice_prev, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                if codice_prev in df["Codice"].values:
+                    df.loc[df["Codice"] == codice_prev, "Stato"] = "ACCETTATO"
+                    df.loc[df["Codice"] == codice_prev, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    conn.update(data=df)
+                    
+                    st.success("🎉 Preventivo firmato con successo!")
+                    st.balloons()
 
-                conn.update(data=df)
-            st.success("🎉 Preventivo firmato con successo! Riceverai una mail di conferma.")
-            st.balloons()
+                    # 2. Generazione PDF Ricevuta
+                    pdf_firmato = FPDF()
+                    pdf_firmato.add_page()
+                    pdf_firmato.set_font("Arial", "B", 16)
+                    pdf_firmato.cell(0, 10, f"CONFERMA ACCETTAZIONE {codice_prev}", ln=1, align='C')
+                    pdf_firmato.ln(10)
+                    pdf_firmato.set_font("Arial", "", 12)
+                    
+                    testo_pdf = (f"Il presente documento attesta che il cliente ha accettato i termini "
+                                 f"in data {datetime.now().strftime('%d/%m/%Y')} alle ore {datetime.now().strftime('%H:%M')}.\n"
+                                 f"Validazione tramite OTP: {otp_input}\n"
+                                 f"Stato: FIRMATO ELETTRONICAMENTE")
+                    
+                    pdf_firmato.multi_cell(0, 10, testo_pdf)
+                    pdf_output = pdf_firmato.output(dest="S").encode('latin-1')
 
-        msg_notifica = MIMEMultipart()
-        msg_notifica['From'] = SENDER_EMAIL
-        msg_notifica['To'] = SENDER_EMAIL
-        msg_notifica["cc"] = MAIL_CC
-        msg_notifica['Subject'] = f"🔔 NOTIFICA: Preventivo {codice_prev} ACCETTATO"
+                    # 3. Invio Notifica Mail a te
+                    try:
+                        msg_notifica = MIMEMultipart()
+                        msg_notifica['From'] = SENDER_EMAIL
+                        msg_notifica['To'] = SENDER_EMAIL
+                        msg_notifica['Subject'] = f"🔔 ACCETTATO: {codice_prev}"
+                        msg_notifica.attach(MIMEText(f"Il cliente ha firmato il preventivo {codice_prev}", 'plain'))
+                        
+                        import ssl
+                        context_not = ssl.create_default_context()
+                        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context_not) as server:
+                            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                            server.send_message(msg_notifica)
+                    except:
+                        pass # Se la notifica a te fallisce, non blocchiamo il cliente
 
-        corpo_notifica = f"Il cliente ha appena firmato il preventivo {codice_prev} tramite OTP."
-        msg_notifica.attach(MIMEText(corpo_notifica, 'plain'))
-
-        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context_notifica) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg_notifica)
-
-        st.download_button(label="📥 SCARICA RICEVUTA", ...)
-    except Expection as e:
-        st.error(f"Errore: {e}")
+                    # 4. Tasto Download per il cliente
+                    st.download_button(
+                        label="📥 Scarica la tua ricevuta di firma (PDF)",
+                        data=pdf_output,
+                        file_name=f"Ricevuta_Firma_{codice_prev}.pdf",
+                        mime="application/pdf"
+                    )
+                else:
+                    st.error("Errore: Preventivo non trovato nel database")
+                    
+            except Exception as e:
+                st.error(f"Errore tecnico: {e}")
         else:
-            st.error("Errore: Preventivo non trovato nel database")
-    except Expection as e:
-        st.error(f"Errore tecnico: {e}")
-else
-    st.error("❌ Codice OTP errato.")
-st.stop()
+            st.error("❌ Codice OTP errato. Riprova.")
+            
+    st.stop() # Interrompe l'app qui per il cliente
 
     pdf_firmato = FPDF()
     pdf_firmato.add_page()
