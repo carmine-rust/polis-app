@@ -407,7 +407,7 @@ if 'pdf_bytes' in st.session_state:
         st.session_state.current_otp = str(random.randint(100000, 999999))
     
     # Indirizzo della tua app pubblicata (cambialo con quello reale)
-    url_app = "https://polis-app.streamlit.app/" 
+    url_app = "https://preventivatore-pratiche-connessione.streamlit.app/" 
     # Creiamo il link magico
     link_firma = f"{url_app}?codice={st.session_state.current_cod}&otp={st.session_state.current_otp}"
     
