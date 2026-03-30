@@ -62,7 +62,7 @@ hide_st_style = f"""
     footer {{visibility: hidden;}}
     header {{visibility: hidden;}}
     </style>
-
+"""
 # 3. APPLICA LO STILE
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
