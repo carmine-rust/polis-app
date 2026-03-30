@@ -225,15 +225,14 @@ if "otp" in query_params:
             importo_totale = 0.0
     
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
-    if cod_u in df_c.values:
-        idx = df_c[df_c == cod_u].index[0]
-        importo_totale = float(df.at[idx, "Totale"])
-        
-        st.warning(f"""### 💳 Istruzioni per il pagamento
-Per rendere effettiva l'accettazione, è necessario effettuare il bonifico:
-- **Importo da versare:** {importo_totale:.2f} EUR
-- **IBAN:** `{IBAN_POLIS}`
-- **Causale:** `Accettazione Preventivo {cod_u}`""")
+      if cod_u in df_c.values:
+            idx = df_c[df_c == cod_u].index[0]
+            importo_totale = float(df.at[idx, "Totale"])
+
+            # SCRITTO COSÌ NON PUÒ DARE ERRORE DI SINTASSI
+            messaggio_bonifico = f"### 💳 Istruzioni per il pagamento\nPer rendere effettiva l'accettazione, è necessario effettuare il bonifico di **{importo_totale:.2f} EUR**.\n\n**IBAN:** `{IBAN_POLIS}`\n**Causale:** `Accettazione Preventivo {cod_u}`"
+            
+            st.warning(messaggio_bonifico)
     if st.button("✅ FIRMA ORA"):
             if otp_in.strip() == otp_u:
                 try:
