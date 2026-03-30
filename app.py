@@ -151,6 +151,13 @@ if "otp" in query_params:
     cod_u = str(query_params.get("codice", "")).strip()
     otp_u = str(query_params.get("otp", "")).strip()
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+    st.warning(f"""
+    ### 💳 Istruzioni per il pagamento
+    Per rendere effettiva l'accettazione, è necessario effettuare il bonifico:
+    - **Importo da versare:** {d_cliente['Totale']:.2f} EUR
+    - **IBAN:** `{IBAN_POLIS}`
+    - **Causale:** `Accettazione Preventivo {cod_u}`
+    """)
     if st.button("✅ FIRMA ORA"):
             if otp_in.strip() == otp_u:
                 try:
