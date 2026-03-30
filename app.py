@@ -17,20 +17,64 @@ from email.mime.application import MIMEApplication
 st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
 
 # Nasconde il menù di Streamlit per tutti gli utenti
-hide_st_style = """
+primary_blue = "#004a99"  # Blu istituzionale Polis Energia
+
+hide_st_style = f"""
             <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
+            /* Sfondo dell'intera pagina */
+            .stApp {{
+                background-color: {primary_blue};
+            }}
+
+            /* Nasconde i menu di sistema */
+            #MainMenu {{visibility: hidden;}}
+            footer {{visibility: hidden;}}
+            header {{visibility: hidden;}}
+
+            /* Testi in bianco per contrasto sullo sfondo blu */
+            h1, h2, h3, p, span, label, .stMarkdown {{
+                color: white !important;
+            }}
+
+            /* Tasti Bianchi con testo Blu (stile moderno) */
+            .stButton>button {{
+                background-color: white !important;
+                color: {primary_blue} !important;
+                border-radius: 8px !important;
+                border: none !important;
+                font-weight: bold !important;
+                height: 3em !important;
+                width: 100% !important;
+            }}
+            
+            /* Box dei messaggi e input (devono rimanere chiari per leggibilità) */
+            .stAlert {{
+                background-color: #f8f9fa !important;
+                color: black !important;
+            }}
+            
+            div[data-baseweb="input"] > div {{
+                background-color: white !important;
+            }}
+            
+            input {{
+                color: black !important;
+            }}
             </style>
             """
-st.markdown(hide_st_style, unsafe_allow_html=True)
-try:
-    st.image("logo_polis.png", width=200)
-except:
-    st.markdown("<h2 style='color: #004a99;'>POLIS</h2>", unsafe_allow_html=True)
-st.divider()
 
+# 3. APPLICA LO STILE
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+# 4. LOGO (Subito dopo lo stile)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    try:
+        st.image("logo_polis.png", width=250)
+    except:
+        st.markdown("<h1 style='text-align: center; color: white;'>POLIS</h1>", unsafe_allow_html=True)
+
+st.divider()
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
 TIC_DOMESTICO_LE6 = 62.30  
