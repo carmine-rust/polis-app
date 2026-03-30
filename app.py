@@ -4,6 +4,7 @@ import pandas as pd
 import random
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -114,6 +115,8 @@ IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena"
 
 st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
 
+from fpdf.enums import XPos, YPos
+
 def genera_pdf_polis(d):
     pdf = FPDF()
     pdf.add_page()
@@ -128,41 +131,43 @@ def genera_pdf_polis(d):
     except:
         pdf.set_xy(10, 12)
         pdf.set_text_color(255, 255, 255)
-        pdf.set_font("Arial", "B", 18)
+        pdf.set_font("helvetica", "B", 18)
         pdf.cell(0, 10, "PolisEnergia srl")
     
     # Dati Aziendali in Bianco
     pdf.set_xy(120, 10)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", "", 8)
+    pdf.set_font("helvetica", "", 8)
     pdf.multi_cell(80, 4, "Via Terre delle Risaie, 4 - 84131 Salerno (SA)\nP.IVA 05050950657\nassistenza@polisenergia.it - www.polisenergia.it", align='R')
     
     # --- TITOLO E DATA ---
     pdf.set_xy(10, 50)
     pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", ln=1)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 6, f"Data emissione: {datetime.now().strftime('%d/%m/%Y')}", ln=1)
+    pdf.set_font("helvetica", "B", 14)
+    # Sostituito ln=1 con new_x/new_y
+    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, f"Data emissione: {datetime.now().strftime('%d/%m/%Y')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     # --- DATI CLIENTE ---
     pdf.ln(5)
     pdf.set_fill_color(240, 240, 240)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(0, 8, f" SPETT.LE CLIENTE: {d['Cliente']}", 0, 1, 'L', True)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 7, f" POD: {d['POD']}", ln=1)
-    pdf.cell(0, 7, f" Indirizzo: {d['Indirizzo']}", ln=1)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 8, f" SPETT.LE CLIENTE: {d['Cliente']}", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L', fill=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 7, f" POD: {d['POD']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 7, f" Indirizzo: {d['Indirizzo']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     # --- TABELLA PRESTAZIONI ---
     pdf.ln(10)
-    pdf.set_font("Arial", "B", 10)
+    pdf.set_font("helvetica", "B", 10)
     pdf.set_fill_color(0, 51, 102)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True)
-    pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
+    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
+    pdf.cell(50, 10, " IMPORTO", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C', fill=True)
+    
     pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", "", 10)
+    pdf.set_font("helvetica", "", 10)
     
     # Righe Tabella
     voci = [
@@ -172,49 +177,47 @@ def genera_pdf_polis(d):
     ]
     
     for voce, importo in voci:
-        pdf.cell(140, 8, f" {voce}", 1)
-        pdf.cell(50, 8, f"{importo} EUR ", 1, 1, 'R')
+        pdf.cell(140, 8, f" {voce}", border=1)
+        pdf.cell(50, 8, f"{importo} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
         
     # Totali
     pdf.ln(2)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(140, 10, " TOTALE IMPONIBILE", 1)
-    pdf.cell(50, 10, f"{d['Imponibile']:.2f} EUR ", 1, 1, 'R')
-    pdf.cell(140, 10, f" IVA APPLICATA ({d['IVA_Perc']}%)", 1)
-    pdf.cell(50, 10, f"{d['IVA_Euro']:.2f} EUR ", 1, 1, 'R')
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(140, 10, " TOTALE IMPONIBILE", border=1)
+    pdf.cell(50, 10, f"{d['Imponibile']:.2f} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
+    pdf.cell(140, 10, f" IVA APPLICATA ({d['IVA_Perc']}%)", border=1)
+    pdf.cell(50, 10, f"{d['IVA_Euro']:.2f} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
     
     pdf.set_fill_color(220, 230, 240)
-    pdf.cell(140, 12, " TOTALE DA CORRISPONDERE", 1, 0, 'L', True)
-    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR ", 1, 1, 'R', True)
+    pdf.cell(140, 12, " TOTALE DA CORRISPONDERE", border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
+    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
     
     # --- PAGAMENTO ---
     pdf.ln(15)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", ln=1)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 6, f"Bonifico Bancario IBAN: {d['IBAN']}", ln=1)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", ln=1)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 6, f"Bonifico Bancario IBAN: {d['IBAN']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     # --- NOTE ---
     pdf.ln(15)
-    pdf.set_font("Arial", "", 6)
-    pdf.cell(0,4, " L'esecuzione della prestazione è pertanto subordinata al verificarsi delle seguenti condizioni:", ln=1)
-    pdf.set_font("Arial", "", 6)
-    pdf.cell(0,4, "- conferma della proposta perventua entro 30 gg dalla presente richiesta;", ln=1)
-    pdf.set_font("Arial", "", 6)
-    pdf.cell(0,4, "- in caso di consegna della specifica tecnica, comunicazione dell'avvenuto completamento delle eventuali opere e/o concessioni,autorizzazioni, servitù a cura del cliente finale." , ln=1)
-    pdf.set_font("Arial", "", 6)
-    pdf.cell(0,4, "Tale preventivo, opportunamente sottoscritto, dovrà essere inviato tramite mail all'indirizzo assistenza@polisenergia.it", ln=1)
+    pdf.set_font("helvetica", "", 6)
+    pdf.cell(0,4, " L'esecuzione della prestazione è pertanto subordinata al verificarsi delle seguenti condizioni:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0,4, "- conferma della proposta perventua entro 30 gg dalla presente richiesta;", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0,4, "- in caso di consegna della specifica tecnica, comunicazione dell'avvenuto completamento delle eventuali opere e/o concessioni,autorizzazioni, servitù a cura del cliente finale." , new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0,4, "Tale preventivo, opportunamente sottoscritto, dovrà essere inviato tramite mail all'indirizzo assistenza@polisenergia.it", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     # --- FIRME ---
     pdf.set_y(-50)
-    pdf.set_font("Arial", "", 8)
-    pdf.cell(0, 5, "Firma per Accettazione Cliente", 0, 1, 'R')
+    pdf.set_font("helvetica", "", 8)
+    pdf.cell(0, 5, "Firma per Accettazione Cliente", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
     pdf.ln(10)
     pdf.line(140, pdf.get_y()+5, 200, pdf.get_y()+5) # Linea Cliente
     
-    return pdf.output(dest='S')
+    # rimosso dest='S', fpdf2 gestisce l'output come byte stream
+    return pdf.output()
 
 # --- LOGICA FRANCHIGIA (3.3 resta 3.3 | 4.95 diventa 5) ---
 def format_franchigia(p):
@@ -393,8 +396,7 @@ if st.button("📁 GENERA PDF E SALVA SU EXCEL", type="primary", use_container_w
     except: st.warning("PDF generato, ma errore Excel.")
     
     st.session_state.seq += 1
-
-# --- 5. MAIL (COMPARE SOLO SE IL PDF È STATO GENERATO) ---
+    
 # --- 5. MAIL CON LOGICA DI FIRMA AUTOMATICA ---
 if 'pdf_bytes' in st.session_state:
     st.divider()
@@ -450,7 +452,7 @@ if 'pdf_bytes' in st.session_state:
                         msg['From'] = SENDER_EMAIL
                         msg['To'] = email_dest
                         msg['Cc'] = MAIL_CC
-                        msg['Subject'] = f"FIRMA ELETTRONICA: Preventivo {st.session_state.current_cod}"
+                        msg['Subject'] = f"PolisEnergia srl: Preventivo {st.session_state.current_cod}"
                         msg.attach(MIMEText(corpo_mail, 'plain'))
 
                         filename = f"{st.session_state.current_cod}.pdf"
