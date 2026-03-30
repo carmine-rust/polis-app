@@ -44,33 +44,77 @@ def format_franchigia(p):
 def genera_pdf_polis(d):
     pdf = FPDF()
     pdf.add_page()
+    
+    # --- 1. INTESTAZIONE BLU ---
     pdf.set_fill_color(0, 51, 102)
     pdf.rect(0, 0, 210, 40, 'F')
-    pdf.set_xy(10, 12); pdf.set_text_color(255, 255, 255); pdf.set_font("helvetica", "B", 18)
+    pdf.set_xy(10, 12)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("helvetica", "B", 18)
     pdf.cell(0, 10, "PolisEnergia srl")
-    pdf.set_xy(120, 10); pdf.set_font("helvetica", "", 8)
+    
+    pdf.set_xy(120, 10)
+    pdf.set_font("helvetica", "", 8)
     pdf.multi_cell(80, 4, "Via Terre delle Risaie, 4 - 84131 Salerno (SA)\nP.IVA 05050950657\nassistenza@polisenergia.it", align='R')
-    pdf.set_xy(10, 50); pdf.set_text_color(0, 0, 0); pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.ln(5); pdf.set_font("helvetica", "B", 10); pdf.set_fill_color(240, 240, 240)
-    pdf.cell(0, 8, f" SPETT.LE CLIENTE: {d['Cliente']}", fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    # --- 2. DATI CLIENTE ---
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_xy(10, 50)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", ln=True)
     pdf.set_font("helvetica", "", 10)
-    pdf.cell(0, 7, f" POD: {d['POD']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(0, 7, f" Indirizzo: {d['Indirizzo']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 7, f"Data: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 8, f" SPETT.LE CLIENTE: {d['Cliente']}", fill=True, ln=True)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 7, f" POD: {d['POD']}", ln=True)
+    pdf.cell(0, 7, f" Indirizzo: {d['Indirizzo']}", ln=True)
+    
+    # --- 3. TABELLA (COSTRUZIONE MANUALE RIGA PER RIGA) ---
     pdf.ln(10)
-    # Tabella Prestazioni
-    pdf.set_font("helvetica", "B", 10); pdf.set_fill_color(0, 51, 102); pdf.set_text_color(255, 255, 255)
-    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", border=1, fill=True); pdf.cell(50, 10, " IMPORTO", border=1, fill=True, align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_text_color(0, 0, 0); pdf.set_font("helvetica", "", 10)
-    pdf.cell(140, 8, " Quota Tecnica TIC", border=1); pdf.cell(50, 8, f"{d['C_Tec']:.2f} EUR", border=1, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(140, 8, " Oneri Amministrativi", border=1); pdf.cell(50, 8, f"{d['Oneri']:.2f} EUR", border=1, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(140, 8, " Oneri Gestione Pratica", border=1); pdf.cell(50, 8, f"{d['Gestione']:.2f} EUR", border=1, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "B", 10); pdf.cell(140, 10, " TOTALE IMPONIBILE", border=1)
-    pdf.cell(50, 10, f"{d['Imponibile']:.2f} EUR", border=1, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(140, 10, f" IVA APPLICATA ({d['IVA_Perc']}%)", border=1); pdf.cell(50, 10, f"{d['IVA_Euro']:.2f} EUR", border=1, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    # Intestazione Tabella
+    pdf.set_font("helvetica", "B", 10)
+    pdf.set_fill_color(0, 51, 102)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", border=1, fill=True)
+    pdf.cell(50, 10, " IMPORTO", border=1, fill=True, align='C', ln=True)
+    
+    # Righe Dati (Torniamo al nero)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("helvetica", "", 10)
+    
+    # Riga 1: Quota Tecnica
+    pdf.cell(140, 8, " Quota Tecnica TIC", border=1)
+    pdf.cell(50, 8, f"{d['C_Tec']:.2f} EUR", border=1, align='R', ln=True)
+    
+    # Riga 2: Oneri
+    pdf.cell(140, 8, " Oneri Amministrativi", border=1)
+    pdf.cell(50, 8, f"{d['Oneri']:.2f} EUR", border=1, align='R', ln=True)
+    
+    # Riga 3: Gestione
+    pdf.cell(140, 8, " Oneri Gestione Pratica", border=1)
+    pdf.cell(50, 8, f"{d['Gestione']:.2f} EUR", border=1, align='R', ln=True)
+    
+    # Riga 4: IVA
+    pdf.cell(140, 8, f" IVA Applicata ({d['IVA_Perc']}%)", border=1)
+    pdf.cell(50, 8, f"{d['IVA_Euro']:.2f} EUR", border=1, align='R', ln=True)
+
+    # --- 4. TOTALE FINALE ---
+    pdf.set_font("helvetica", "B", 11)
     pdf.set_fill_color(220, 230, 240)
     pdf.cell(140, 12, " TOTALE DA CORRISPONDERE", border=1, fill=True)
-    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR", border=1, align='R', fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR", border=1, align='R', fill=True, ln=True)
+    
+    # IBAN e Note
+    pdf.ln(10)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, f"IBAN: {IBAN_POLIS}", ln=True)
+    pdf.set_font("helvetica", "", 9)
+    pdf.cell(0, 6, "Il presente preventivo ha validita' di 30 giorni.", ln=True)
+    
     return pdf.output()
 
 # --- VISTA CLIENTE (FIRMA) ---
@@ -93,7 +137,7 @@ if "otp" in query_params:
                     conn.update(data=df)
                     st.success("Firmato!"); st.balloons()
                     # Notifica a Carmine
-                    msg = MIMEMultipart(); msg['From'] = SENDER_EMAIL; msg['To'] = SENDER_EMAIL
+                    msg = MIMEMultipart(); msg['From'] = SENDER_EMAIL; msg['To'] = SENDER_EMAIL; msg['cc'] = MAIL_CC
                     msg['Subject'] = f"🔔 FIRMATO: {cod_u}"
                     msg.attach(MIMEText(f"Il preventivo {cod_u} è stato firmato.", 'plain'))
                     with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
