@@ -89,24 +89,8 @@ if "otp" in query_params:
             
     st.stop() # Interrompe l'app qui per il cliente
 
-    pdf_firmato = FPDF()
-    pdf_firmato.add_page()
-    pdf_firmato.set_font("Arial", "B", 16)
-    pdf_firmato.cell(0, 10, f"CONFERMA ACCETTAZIONE PREVENTIVO {codice_prev}", ln=1, align='C')
-
-    pdf_firmato.ln(10)
-    pdf_firmato.set_font("Arial","",12)
-    pdf_firmato.multi_cell(0, 10, f"""Il presente documento attesta che il cliente ha accettato i termini del preventivo in data {datetime.now().strftime('%d/%m/%Y')} alle ore {datetime.now().strftime('%H:%M')}.
-Validazione tramite OTP: {otp_input}
-Stato: FIRMATO ELETTRONICAMENTE""")
-    pdf_output = pdf_firmato.output(dest="S").encode('latin-1')
-
-    st.download_button(
-        label='📥 Scarica la tua ricevuta di firma (PDF)',
-        data=pdf.output,
-        file_name=f"Ricevuta_Firma_{codice_prev}.pdf",
-        mime="application/pdf"
-)
+st.title("Gestione Preventivi Polis")
+st.write("Benvenuto Carmine. Qui puoi generare nuovi OTP.")
     
 # --- CONFIGURAZIONE SMTP ---
 SMTP_SERVER = st.secrets["EMAIL_SERVER"]
