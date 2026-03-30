@@ -135,7 +135,9 @@ if 'seq' not in st.session_state: st.session_state.seq = 1
 
 # --- INTERFACCIA ---
 st.title("⚡ PolisEnergia - Gestione Preventivi")
-if st.button("🧹 PULISCI TUTTO"): reset_form()
+if st.button("🧹 PULISCI TUTTO", use_container_width=True):
+    st.session.state.clear()
+    st.rerun()
 
 # 1. DATI ANAGRAFICI
 with st.container():
