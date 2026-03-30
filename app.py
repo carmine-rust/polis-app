@@ -138,8 +138,8 @@ if "otp" in query_params:
                     st.success("Firmato!"); st.balloons()
                     # Notifica a Carmine
                     msg = MIMEMultipart(); msg['From'] = SENDER_EMAIL; msg['To'] = SENDER_EMAIL; msg['cc'] = MAIL_CC
-                    msg['Subject'] = f"🔔 FIRMATO: {cod_u}"
-                    msg.attach(MIMEText(f"Il preventivo {cod_u} è stato firmato.", 'plain'))
+                    msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente_da_db}"
+                    msg.attach(MIMEText(f"Il cliente {nome_cliente_da_db} ha accettato preventivo {cod_u}.", 'plain'))
                     with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
                         s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
                 else: st.error("Non trovato.")
