@@ -74,7 +74,6 @@ def genera_pdf_polis(d):
     pdf.set_text_color(255, 255, 255)
     pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", 1, 0, 'L', True)
     pdf.cell(50, 10, " IMPORTO", 1, 1, 'C', True)
-    
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", "", 10)
     
