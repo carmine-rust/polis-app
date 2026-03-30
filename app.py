@@ -225,6 +225,8 @@ if "otp" in query_params:
             importo_totale = 0.0
     
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+    if cod_u in df_c.values:
+        idx = df_c[df_c == cod_u].index[0]
         importo_totale = float(df.at[idx, "Totale"])
         st.warning(f"""
     ### 💳 Istruzioni per il pagamento
