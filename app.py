@@ -151,6 +151,7 @@ if "otp" in query_params:
     cod_u = str(query_params.get("codice", "")).strip()
     otp_u = str(query_params.get("otp", "")).strip()
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+    importo_totale = float(df.at[idx, "Totale"])
     st.warning(f"""
     ### 💳 Istruzioni per il pagamento
     Per rendere effettiva l'accettazione, è necessario effettuare il bonifico:
