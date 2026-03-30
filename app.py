@@ -1,6 +1,7 @@
 import streamlit as st
 import math
 import pandas as pd
+import random
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
 from datetime import datetime
