@@ -545,7 +545,7 @@ elif scelta == "Preventivo di Connessione":
     
         st.divider()
         otp = str(random.randint(100000, 999999))
-        link = f"https://preventivatore-pratiche-connessione.streamlit.app/?codice={st.session_state.current_cod}&otp={otp}"
+        link = f"https://operation-polisenergia.streamlit.app/?codice={st.session_state.current_cod}&otp={otp}"
     
         testo_pre = f"Spett.le {nome},\nin allegato il preventivo {st.session_state.current_cod}.\nPuoi firmare qui: {link}\nOTP: {otp}"
         corpo_mail = st.text_area("Modifica Testo Mail:", value=testo_pre, height=150)
