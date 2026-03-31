@@ -92,21 +92,25 @@ if "otp" in query_params and "codice" in query_params:
             importo_totale = float(df.at[idx, "Totale"])
             nome_cliente = df.at[idx, "Cliente"]
 
-            st.warning(f"### 💳 Istruzioni per il pagamento\nImporto: **{importo_totale:.2f} EUR**...")
-            st.write(f"**Cliente:** {nome_cliente}")
-            st.write(f"**Importo da corrispondere:** {importo_totale:.2f} EUR")
-            
-            st.info(f"""
-            **Coordinate Bancarie per il Bonifico:**
-            * **Intestatario:** POLISENERGIA SRL
-            * **Banca:** Monte dei Paschi di Siena
-            * **IBAN:** {IBAN_POLIS}
-            * **Causale:** Accettazione Preventivo {cod_u} - {nome_cliente}
-            """)
+            st.markdown(f"""
+                <div style="background-color: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 10px; border: 1px solid white; margin-bottom: 25px;">
+                    <h3 style="color: white; margin-top: 0;">💳 Istruzioni per il pagamento</h3>
+                    <p style="color: white; font-size: 1.1em;"><strong>Cliente:</strong> {nome_cliente}</p>
+                    <p style="color: white; font-size: 1.1em;"><strong>Importo da corrispondere:</strong> {importo_totale:.2f} EUR</p>
+                    <hr style="border-color: rgba(255,255,255,0.3);">
+                    <p style="color: white; font-weight: bold; margin-bottom: 5px;">COORDINATE BANCARIE:</p>
+                    <ul style="color: white; list-style-type: none; padding-left: 0;">
+                        <li><strong>Intestatario:</strong> POLISENERGIA SRL</li>
+                        <li><strong>Banca:</strong> Monte dei Paschi di Siena</li>
+                        <li><strong>IBAN:</strong> <span style="font-family: monospace; background: rgba(0,0,0,0.2); padding: 2px 5px;">{IBAN_POLIS}</span></li>
+                        <li><strong>Causale:</strong> Accettazione Preventivo {cod_u} - {nome_cliente}</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
 
-            st.divider()
-    
-            otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+            # --- INPUT OTP ---
+            st.markdown("<p style='color: white; font-weight: bold; margin-bottom: 0;'>Inserisci l'OTP ricevuto via mail per confermare:</p>", unsafe_allow_html=True)
+            otp_in = st.text_input("Label Nascosta", label_visibility="collapsed", max_chars=6)
     
             if st.button("✅ FIRMA ORA"):
                 if otp_in.strip() == otp_u:
