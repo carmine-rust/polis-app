@@ -3,3 +3,5 @@ fpdf2
 st-gsheets-connection
 pandas
 openpyxl
+sqlalchemy
+psycopg2-binary
