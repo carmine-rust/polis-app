@@ -25,9 +25,10 @@ st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connessione", "Autoletture (TAL 0050)"])
 if scelta == "Autoletture (TAL 0050)":
     st.header("📊 Generatore Flussi Autoletture (TAL 0050)")
-file_arera_path = "arera.csv"
+    file_arera_path = "arera.csv"
     if not os.path.exists(file_arera_path):
         st.error("❌ File 'arera.csv' non trovato su GitHub. Caricalo nel repository per continuare.")
+        st.stop()
         return
 
     # 2. Input Dati
@@ -281,8 +282,6 @@ def genera_pdf_polis(d):
 # --- 5. LOGICA DI NAVIGAZIONE ---
 scelta_servizio = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connessione", "Autoletture (TAL 0050)"], key="nav_principale")
 
-# --- MODULO 1: PREVENTIVO ---
-if scelta_servizio == "Preventivo di Connessione":
     # --- TUTTO QUESTO DEVE AVERE IL RIENTRO A DESTRA ---
     # Logo
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
