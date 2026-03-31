@@ -649,24 +649,23 @@ elif scelta == "Preventivo di Connessione":
 # Funzione per migrare i dati
 def migra_dati_su_postgres():
     try:
-        # 1. Connessione a Google Sheets
-        conn_gsheets = st.connection("gsheets", type=GSheetsConnection)
+        # Sostituisci "gsheets" con il nome esatto della tua connessione gsheets
+        conn_gsheets = st.connection("gsheets", type="gsheets") 
         df_excel = conn_gsheets.read(ttl="0") 
         
-        # 2. Connessione a PostgreSQL
         conn_pg = st.connection("postgresql", type="sql")
         
-        st.write(f"Trovati {len(df_excel)} record su Excel. Inizio migrazione...")
+        st.write(f"Record trovati: {len(df_excel)}. Inizio...")
 
         with conn_pg.session as s:
             for index, row in df_excel.iterrows():
-                # AVVOLGIAMO LA QUERY NELLA FUNZIONE text()
                 query_sql = text("""
                     INSERT INTO preventivi (codice, cliente, totale, otp, stato) 
                     VALUES (:c, :cl, :t, :o, :s)
                     ON CONFLICT (codice) DO NOTHING
                 """)
                 
+                # Assicurati che i nomi tra parentesi ['...'] siano identici alle intestazioni del tuo Excel
                 s.execute(
                     query_sql,
                     params={
@@ -678,6 +677,10 @@ def migra_dati_su_postgres():
                     }
                 )
             s.commit()
-        st.success("✅ Migrazione completata con successo!")
+        st.success("✅ MIGRAZIONE COMPLETATA! Ora puoi cancellare questo blocco di codice.")
     except Exception as e:
-        st.error(f"Errore durante la migrazione: {e}")
+        st.error(f"Errore: {e}")
+
+# Questo tasto apparirà in cima a tutto, rosso e visibile
+if st.button("🚨 AVVIA MIGRAZIONE ORA (CLICCA UNA VOLTA)"):
+    migra_dati_su_postgres()
