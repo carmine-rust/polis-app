@@ -555,3 +555,16 @@ if 'pdf_bytes' in st.session_state:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
         st.success("Email inviata!")
+# --- NAVIGAZIONE PRINCIPALE ---
+st.sidebar.image("https://www.arera.it/logo_arera.png", width=100) # Opzionale: un logo
+st.sidebar.title("Menu Operativo")
+scelta = st.sidebar.radio("Seleziona attività:", ["Preventivo di Connessione", "Autoletture (TAL 0050)"])
+
+if scelta == "Preventivo di Connessione":
+    modulo_preventivi()
+else:
+    modulo_autoletture()
+
+# Footer
+st.sidebar.divider()
+st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
