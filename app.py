@@ -89,6 +89,18 @@ if "otp" in query_params and "codice" in query_params:
             nome_cliente = df.at[idx, "Cliente"]
 
             st.warning(f"### 💳 Istruzioni per il pagamento\nImporto: **{importo_totale:.2f} EUR**...")
+            st.write(f"**Cliente:** {nome_cliente}")
+            st.write(f"**Importo da corrispondere:** {importo_totale:.2f} EUR")
+            
+            st.info(f"""
+            **Coordinate Bancarie per il Bonifico:**
+            * **Intestatario:** POLISENERGIA SRL
+            * **Banca:** Monte dei Paschi di Siena
+            * **IBAN:** {IBAN_POLIS}
+            * **Causale:** Accettazione Preventivo {cod_u} - {nome_cliente}
+            """)
+
+            st.divider()
     
             otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
     
