@@ -5,93 +5,23 @@ import random
 import io
 import xml.etree.ElementTree as ET
 import re
+import os
+import smtplib
+import ssl
+from collections import defaultdict
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 from datetime import datetime
-import smtplib
-import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 
-st.set_page_config(page_title="Operation Suite", layout="wide")
+# --- 1. CONFIGURAZIONE PAGINA (UNICA CHIAMATA) ---
+st.set_page_config(page_title="PolisEnergia Suite", layout="wide", page_icon="🖋️")
 
-# --- SIDEBAR DI NAVIGAZIONE ---
-st.sidebar.title("Navigazione")
-scelta_servizio = st.sidebar.radio(
-    "Cosa vuoi fare?", 
-    ["Preventivo di Connessione", "Autoletture (TAL 0050)"],
-    key="nav_principale" # La chiave evita conflitti con altri widget
-)
-# --- 3. LOGICA DI SEPARAZIONE ---
-if scelta_servizio == "Preventivo di Connessione":
-    st.header("📝 Preventivo di Connessione")
-# --- CONFIGURAZIONE E COSTANTI ---
-st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
-
-# Nasconde il menù di Streamlit per tutti gli utenti
-# Definiamo tutto lo stile in un unico blocco
-primary_blue = "#004a99" 
-
-hide_st_style = f"""
-    <style>
-    /* 1. SFONDO PAGINA */
-    .stApp {{
-        background-color: {primary_blue};
-    }}
-
-    /* 2. TESTI BIANCHI */
-    h1, h2, h3, p, span, label, .stMarkdown {{
-        color: white !important;
-    }}
-
-    /* 3. INPUT BIANCHI CON TESTO NERO */
-    .stTextInput>div>div>input {{
-        background-color: white !important;
-        color: black !important;
-    }}
-
-    /* 4. IL TUO PUNTO 4: TASTO VERDE */
-    div.stButton > button:first-child {{
-        background-color: #28a745 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        border: 2px solid #28a745 !important;
-        font-weight: bold !important;
-        height: 3em !important;
-        width: 100% !important;
-        transition: 0.3s !important;
-    }}
-
-    /* EFFETTO HOVER SUL TASTO VERDE */
-    div.stButton > button:first-child:hover {{
-        background-color: #218838 !important;
-        border-color: #1e7e34 !important;
-        transform: scale(1.02);
-    }}
-
-    /* 5. NASCONDI MENU SISTEMA */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
-    </style>
-"""
-# 3. APPLICA LO STILE
-st.markdown(hide_st_style, unsafe_allow_html=True)
-
-# 4. LOGO (Subito dopo lo stile)
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    try:
-        st.image("logo_polis.png", width=250)
-    except:
-        st.markdown("<h1 style='text-align: center; color: white;'>POLIS</h1>", unsafe_allow_html=True)
-
-st.divider()
-st.set_page_config(page_title="PolisEnergia 4.0", layout="wide")
-
+# --- 2. COSTANTI ---
 TIC_DOMESTICO_LE6 = 62.30  
 TIC_ALTRI_USI_BT = 78.81
 TIC_MT = 62.74
@@ -101,24 +31,43 @@ FISSO_BASE_CALCOLO = 25.88
 COSTO_PASSAGGIO_MT = 494.83
 IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena"
 
-try:
-    SMTP_SERVER = st.secrets["EMAIL_SERVER"]
-    SMTP_PORT = st.secrets["EMAIL_PORT"]
-    SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
-    SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
-    MAIL_CC = st.secrets.get("EMAIL_CC", "")
-except:
-    st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
-    st.stop()
+# --- 3. STILE CSS ---
+primary_blue = "#004a99" 
+st.markdown(f"""
+    <style>
+    .stApp {{ background-color: {primary_blue}; }}
+    h1, h2, h3, p, span, label, .stMarkdown {{ color: white !important; }}
+    .stTextInput>div>div>input {{ background-color: white !important; color: black !important; }}
+    div.stButton > button:first-child {{
+        background-color: #28a745 !important; color: white !important;
+        border-radius: 8px !important; font-weight: bold !important; width: 100% !important;
+    }}
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    </style>
+""", unsafe_allow_html=True)
+def formatta_data_italiana(data_raw):
+    d = str(data_raw).strip().split(' ')[0]
+    try:
+        parti = re.split(r'[/.-]', d)
+        if len(parti) == 3:
+            if len(parti[0]) == 4: # ISO
+                anno, mese, giorno = parti[0], parti[1].zfill(2), parti[2].zfill(2)
+            else: # ITA
+                giorno, mese, anno = parti[0].zfill(2), parti[1].zfill(2), parti[2]
+            if len(anno) == 2: anno = "20" + anno
+            return f"{giorno}/{mese}/{anno}"
+        return d
+    except: return d
 
-# --- FUNZIONI TECNICHE ---
-def format_franchigia(p):
-    val = round(p * 1.1, 2)
-    if round(val, 1) != val:
-        return float(math.ceil(val))
-    return val
-
-def genera_pdf_polis(d):
+def pulisci_valore(valore):
+    val = str(valore).strip().lower()
+    if val in ["", "nan", "none", "0", "0,00", "0.00"]: return None
+    parte_intera = val.split(',')[0]
+    solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
+    return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
+ def genera_pdf_polis(d):
     pdf = FPDF()
     pdf.add_page()
     
@@ -219,8 +168,26 @@ def genera_pdf_polis(d):
     
     # rimosso dest='S', fpdf2 gestisce l'output come byte stream
     return pdf.output()
+# --- 5. LOGICA DI NAVIGAZIONE ---
+scelta_servizio = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connessione", "Autoletture (TAL 0050)"], key="nav_principale")
 
-# --- VISTA CLIENTE (FIRMA) ---
+# --- MODULO 1: PREVENTIVO ---
+if scelta_servizio == "Preventivo di Connessione":
+    # Logo
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
+        try: st.image("logo_polis.png", width=250)
+        except: st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
+    # Secrets
+    try:
+    SMTP_SERVER = st.secrets["EMAIL_SERVER"]
+    SMTP_PORT = st.secrets["EMAIL_PORT"]
+    SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
+    SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+    MAIL_CC = st.secrets.get("EMAIL_CC", "")
+except:
+    st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
+    st.stop()
 query_params = st.query_params
 if "otp" in query_params:
     st.title("🖋️ Accettazione Online")
@@ -428,6 +395,41 @@ if 'pdf_bytes' in st.session_state:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
         st.success("Email inviata!")
+# --- SIDEBAR DI NAVIGAZIONE ---
+st.sidebar.title("Navigazione")
+scelta_servizio = st.sidebar.radio(
+    "Cosa vuoi fare?", 
+    ["Preventivo di Connessione", "Autoletture (TAL 0050)"],
+    key="nav_principale" # La chiave evita conflitti con altri widget
+)
+# --- 3. LOGICA DI SEPARAZIONE ---
+if scelta_servizio == "Preventivo di Connessione":
+    st.header("📝 Preventivo di Connessione")
+# --- CONFIGURAZIONE E COSTANTI ---
+st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
+
+
+# 3. APPLICA LO STILE
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+# 4. LOGO (Subito dopo lo stile)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    try:
+        st.image("logo_polis.png", width=250)
+    except:
+        st.markdown("<h1 style='text-align: center; color: white;'>POLIS</h1>", unsafe_allow_html=True)
+
+# --- FUNZIONI TECNICHE ---
+def format_franchigia(p):
+    val = round(p * 1.1, 2)
+    if round(val, 1) != val:
+        return float(math.ceil(val))
+    return val
+
+
+# --- VISTA CLIENTE (FIRMA) ---
+
 # --- NAVIGAZIONE PRINCIPALE ---
 st.sidebar.image("https://www.arera.it/logo_arera.png", width=100) # Opzionale: un logo
 st.sidebar.title("Menu Operativo")
