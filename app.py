@@ -20,7 +20,11 @@ from email.mime.application import MIMEApplication
 
 # --- 1. CONFIGURAZIONE PAGINA (UNICA CHIAMATA) ---
 st.set_page_config(page_title="Operation Suite", layout="wide")
+tab_preventivo, tab_autolettura = st.tabs(["📝 Preventivo di Connessione", "📸 Invia Autolettura"])
 
+with tab_autolettura:
+    st.header("Comunicazione Autolettura")
+    
 def formatta_data_italiana(data_raw):
     """Forza il formato GG/MM/AAAA richiesto dai portali"""
     d = str(data_raw).strip().split(' ')[0]
@@ -153,8 +157,9 @@ if scelta == "Autoletture (TAL 0050)":
 
             except Exception as e:
                 st.error(f"Errore durante l'elaborazione: {e}")
+with tab_preventivo:
+    st.header("📝 Preventivo di Connessione")
 
-st.header("📝 Preventivo di Connessione")
 # --- 2. COSTANTI ---
 TIC_DOMESTICO_LE6 = 62.30  
 TIC_ALTRI_USI_BT = 78.81
