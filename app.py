@@ -75,23 +75,33 @@ def pulisci_valore(valore):
         parte_intera = parte_intera.rsplit('.', 1)[0]
     solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
     return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
+
 query_params = st.query_params
-if "otp" in query_params and "codice" in query_params:
+
+# Recuperiamo i parametri dall'URL (se esistono)
+otp_param = query_params.get("otp", "")
+codice_param = query_params.get("codice", "")
+
+# --- BLOCCO A: INTERCETTAZIONE CLIENTE (Solo se i parametri sono presenti) ---
+if otp_param and codice_param:
     st.title("🖋️ Accettazione Online")
     
-    cod_u = str(query_params.get("codice", "")).strip().replace('.0', '')
-    otp_u = str(query_params.get("otp", "")).strip()
-        
+    # Pulizia codici dai parametri
+    cod_u = str(codice_param).strip().replace('.0', '')
+    otp_u = str(otp_param).strip()
+    
     try:
+        # Connessione al Database per recuperare i dati del preventivo
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl=0)
-        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '')
 
         if cod_u in df_c.values:
             idx = df_c[df_c == cod_u].index[0]
-            importo_totale = float(df.at[idx, "Totale"])
             nome_cliente = df.at[idx, "Cliente"]
+            importo_totale = float(df.at[idx, "Totale"])
 
+            # --- BOX INFORMAZIONI PAGAMENTO (BIANCO SU BLU) ---
             st.markdown(f"""
                 <div style="background-color: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 10px; border: 1px solid white; margin-bottom: 25px;">
                     <h3 style="color: white; margin-top: 0;">💳 Istruzioni per il pagamento</h3>
@@ -108,47 +118,47 @@ if "otp" in query_params and "codice" in query_params:
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- INPUT OTP ---
             st.markdown("<p style='color: white; font-weight: bold; margin-bottom: 0;'>Inserisci l'OTP ricevuto via mail per confermare:</p>", unsafe_allow_html=True)
-            otp_in = st.text_input("Label Nascosta", label_visibility="collapsed", max_chars=6)
-    
-            if st.button("✅ FIRMA ORA"):
+            otp_in = st.text_input("OTP_INPUT", label_visibility="collapsed", max_chars=6)
+            
+            if st.button("✅ FIRMA E ACCETTA ORA"):
                 if otp_in.strip() == otp_u:
-                    # Ricarichiamo la connessione per sicurezza
-                    df = conn.read(ttl=0)
+                    # 1. Aggiornamento Database
                     df.at[idx, "Stato"] = "ACCETTATO"
                     df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                     conn.update(data=df)
-                
-                    if cod_u in df_c.values:
-                        idx = df_c[df_c == cod_u].index[0]
-                        nome_cliente = df.at[idx, "Cliente"]
-                        importo_totale = float(df.at[idx, "Totale"])
-    
                     
-                        # --- NOTIFICA EMAIL ---
+                    # 2. Invio Notifica Email (Carmine)
+                    try:
                         msg = MIMEMultipart()
                         msg['From'] = SENDER_EMAIL
                         msg['To'] = SENDER_EMAIL
-                        msg['cc'] = MAIL_CC
-                        msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente}"
-                    
-                        corpo_mail = f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}."
+                        msg['Cc'] = MAIL_CC
+                        msg['Subject'] = f"✅ PREVENTIVO FIRMATO: {nome_cliente}"
+                        corpo_mail = f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}.\nControlla il database."
                         msg.attach(MIMEText(corpo_mail, 'plain'))
-                    
+                        
                         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
                             s.login(SENDER_EMAIL, SENDER_PASSWORD)
                             s.send_message(msg)
+                    except:
+                        pass # Silenzioso se la mail fallisce ma il database è ok
                         
-                        st.success("Firmato!")
-                        st.balloons()
-                    else:
-                        st.error("Documento non trovato nel database.")
+                    st.success("Documento firmato con successo!")
+                    st.balloons()
+                else:
+                    st.error("L'OTP inserito non è corretto.")
+            
+            # --- BLOCCO FONDAMENTALE ---
+            st.stop() # Impedisce al cliente di vedere il menu operativo
+            
+        else:
+            st.error("Errore: Preventivo non trovato o link scaduto.")
+            st.stop()
+
     except Exception as e:
-        st.error(f"Errore tecnico: {e}")
-else:
-    st.error("L'OTP inserito non è corretto.")
-st.stop()
+        st.error(f"Errore tecnico nel caricamento: {e}")
+        st.stop()
 
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
