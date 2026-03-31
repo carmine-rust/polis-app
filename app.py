@@ -324,46 +324,43 @@ if "otp" in query_params and "codice" in query_params:
         
         if st.button("✅ FIRMA ORA"):
             if otp_in.strip() == otp_u:
-                # ... logica di aggiornamento foglio e invio mail ...
-                st.success("Firmato con successo!")
-                st.balloons()
-            else:
-                st.error("OTP errato.")
-    else:
-        st.error("Codice preventivo non trovato.")
-    
-    # IMPORTANTE: Interrompi l'esecuzione qui per non mostrare il pannello di controllo al cliente
-    st.stop()
+                try:
+                    # Ricarichiamo la connessione per sicurezza
+                    conn = st.connection("gsheets", type=GSheetsConnection)
+                    df = conn.read(ttl=0)
+                    df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
                     
-                        # Aggiornamento Database
+                    if cod_u in df_c.values:
+                        idx = df_c[df_c == cod_u].index[0]
+                        nome_cliente = df.at[idx, "Cliente"]
+                        
+                        # --- AGGIORNAMENTO DATABASE (Allineamento corretto) ---
                         df.at[idx, "Stato"] = "ACCETTATO"
                         df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                         conn.update(data=df)
-                    
-                    # Notifica a Carmine
+                        
+                        # --- NOTIFICA EMAIL ---
                         msg = MIMEMultipart()
                         msg['From'] = SENDER_EMAIL
                         msg['To'] = SENDER_EMAIL
                         msg['cc'] = MAIL_CC
                         msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente}"
-                    
-                        # Costruiamo il testo e lo attacchiamo una volta sola
+                        
                         corpo_mail = f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}."
                         msg.attach(MIMEText(corpo_mail, 'plain'))
                         
-                        # Invio Mail
                         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
                             s.login(SENDER_EMAIL, SENDER_PASSWORD)
                             s.send_message(msg)
-                    
+                            
                         st.success("Firmato!")
                         st.balloons()
-                    else: 
-                        st.error("Non trovato.")
-                except Exception as e: 
-                    st.error(f"Errore: {e}")
-            else: 
-                st.error("OTP errato.")
+                    else:
+                        st.error("Documento non trovato nel database.")
+                except Exception as e:
+                    st.error(f"Errore tecnico: {e}")
+            else:
+                st.error("L'OTP inserito non è corretto.")
     st.stop()
 
 # --- VISTA CARMINE ---
