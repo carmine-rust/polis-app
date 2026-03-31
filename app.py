@@ -173,12 +173,16 @@ scelta_servizio = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connession
 
 # --- MODULO 1: PREVENTIVO ---
 if scelta_servizio == "Preventivo di Connessione":
-        # Logo
-        col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-        with col_l2:
-            try: st.image("logo_polis.png", width=250)
-            except: st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
-        # Secrets
+    # --- TUTTO QUESTO DEVE AVERE IL RIENTRO A DESTRA ---
+    # Logo
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
+        try: 
+            st.image("logo_polis.png", width=250)
+        except: 
+            st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
+    
+    # Secrets (ORA È INDENTATO CORRETTAMENTE)
     try:
         SMTP_SERVER = st.secrets["EMAIL_SERVER"]
         SMTP_PORT = st.secrets["EMAIL_PORT"]
@@ -188,6 +192,7 @@ if scelta_servizio == "Preventivo di Connessione":
     except:
         st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
         st.stop()
+
     query_params = st.query_params
     if "otp" in query_params:
         st.title("🖋️ Accettazione Online")
