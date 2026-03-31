@@ -67,7 +67,7 @@ def pulisci_valore(valore):
     parte_intera = val.split(',')[0]
     solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
     return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
- def genera_pdf_polis(d):
+def genera_pdf_polis(d):
     pdf = FPDF()
     pdf.add_page()
     
