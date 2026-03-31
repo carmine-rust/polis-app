@@ -633,7 +633,7 @@ elif scelta == "Preventivo di Connessione":
                 s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
             st.success("Email inviata!")
         
-    st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
+    st.set_page_config(page_title="Operation PolisEnergia", page_icon="🖋️")
 
 
     # --- FUNZIONI TECNICHE ---
