@@ -185,7 +185,7 @@ if "autenticato" not in st.session_state:
 stato_sidebar = "expanded" if not st.session_state.autenticato else "auto"
 
 st.set_page_config(
-    page_title="Polisenergia Suite", 
+    page_title="PolisEnergia Suite", 
     layout="wide", 
     initial_sidebar_state=stato_sidebar
 )
