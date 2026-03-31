@@ -20,10 +20,27 @@ from email.mime.application import MIMEApplication
 
 # --- 1. CONFIGURAZIONE PAGINA (UNICA CHIAMATA) ---
 st.set_page_config(page_title="Operation Suite", layout="wide")
-tab_preventivo, tab_autolettura = st.tabs(["📝 Preventivo di Connessione", "📸 Invia Autolettura"])
 
-with tab_autolettura:
-    st.header("Comunicazione Autolettura")
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+scelta = st.sidebar.selectbox(
+    "Cosa desideri fare?",
+    ["Scegli un'opzione...", "Preventivo di Connessione", "Autolettura"]
+)
+if scelta == "Scegli un'opzione...":
+    st.title("Benvenuto in PolisEnergia")
+    st.info("Seleziona una voce dal menu a sinistra per procedere.")
+
+elif scelta == "Autolettura":
+    st.header("📸 Invio Autolettura")
+
     
 def formatta_data_italiana(data_raw):
     """Forza il formato GG/MM/AAAA richiesto dai portali"""
@@ -157,7 +174,7 @@ if scelta == "Autoletture (TAL 0050)":
 
             except Exception as e:
                 st.error(f"Errore durante l'elaborazione: {e}")
-with tab_preventivo:
+elif scelta == "Preventivo di Connessione":
     st.header("📝 Preventivo di Connessione")
 
 # --- 2. COSTANTI ---
@@ -511,14 +528,7 @@ if 'pdf_bytes' in st.session_state:
 st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
 
 # 3. APPLICA LO STILE
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_st_style, unsafe_allow_html=True)
+
 
 # 4. LOGO (Subito dopo lo stile)
 col1, col2, col3 = st.columns([1, 2, 1])
