@@ -562,13 +562,6 @@ elif scelta == "Preventivo di Connessione":
         
     st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
 
-    # 4. LOGO (Subito dopo lo stile)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        try:
-            st.image("logo_polis.png", width=250)
-        except:
-            st.markdown("<h1 style='text-align: center; color: white;'>POLIS</h1>", unsafe_allow_html=True)
 
     # --- FUNZIONI TECNICHE ---
     def format_franchigia(p):
