@@ -43,7 +43,7 @@ st.markdown("""
     }
     header, footer {visibility: hidden;}
     </style>
-""", unsafe_allow_html=True
+""", unsafe_allow_html=True)
 
 def formatta_data_italiana(data_raw):
     """Forza il formato GG/MM/AAAA richiesto dai portali"""
