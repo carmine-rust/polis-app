@@ -172,7 +172,7 @@ if scelta == "Autoletture (TAL 0050)":
                 st.error(f"Errore durante l'elaborazione: {e}")
 
 elif scelta == "Preventivo di Connessione":
-     st.header("📝 Preventivo di Connessione")
+    st.header("📝 Preventivo di Connessione")
     
 # --- 2. COSTANTI ---
 TIC_DOMESTICO_LE6 = 62.30  
