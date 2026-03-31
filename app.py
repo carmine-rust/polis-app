@@ -8,6 +8,7 @@ import re
 import os
 import smtplib
 import ssl
+from sqlalchemy import text
 from collections import defaultdict
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
@@ -648,9 +649,9 @@ elif scelta == "Preventivo di Connessione":
 # Funzione per migrare i dati
 def migra_dati_su_postgres():
     try:
-        # 1. Connessione a Google Sheets (usa il nome della tua connessione esistente)
+        # 1. Connessione a Google Sheets
         conn_gsheets = st.connection("gsheets", type=GSheetsConnection)
-        df_excel = conn_gsheets.read(ttl="0") # Legge i dati attuali
+        df_excel = conn_gsheets.read(ttl="0") 
         
         # 2. Connessione a PostgreSQL
         conn_pg = st.connection("postgresql", type="sql")
@@ -659,18 +660,19 @@ def migra_dati_su_postgres():
 
         with conn_pg.session as s:
             for index, row in df_excel.iterrows():
-                # Adatta i nomi delle colonne ('Codice', 'Cliente', ecc.) 
-                # a quelli esatti del tuo foglio Excel
-                s.execute(
-                    """
+                # AVVOLGIAMO LA QUERY NELLA FUNZIONE text()
+                query_sql = text("""
                     INSERT INTO preventivi (codice, cliente, totale, otp, stato) 
                     VALUES (:c, :cl, :t, :o, :s)
                     ON CONFLICT (codice) DO NOTHING
-                    """,
+                """)
+                
+                s.execute(
+                    query_sql,
                     params={
                         "c": str(row['Codice']), 
                         "cl": str(row['Cliente']), 
-                        "t": float(pulisci_valore(row['Totale'])) if 'pulisci_valore' in globals() else row['Totale'],
+                        "t": float(row['Totale']) if pd.notnull(row['Totale']) else 0.0,
                         "o": str(row['OTP']),
                         "s": 'ACCETTATO' if row.get('Firmato') == True else 'INVIATO'
                     }
@@ -679,8 +681,3 @@ def migra_dati_su_postgres():
         st.success("✅ Migrazione completata con successo!")
     except Exception as e:
         st.error(f"Errore durante la migrazione: {e}")
-
-# Aggiungi un tasto temporaneo nella sidebar (solo per te che sei loggato)
-if st.session_state.autenticato:
-    if st.sidebar.button("🚀 Travasa dati da Excel a DB"):
-        migra_dati_su_postgres()
