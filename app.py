@@ -289,7 +289,6 @@ with col_l2:
     except: 
         st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
     
-    # Secrets (ORA È INDENTATO CORRETTAMENTE)
     try:
         SMTP_SERVER = st.secrets["EMAIL_SERVER"]
         SMTP_PORT = st.secrets["EMAIL_PORT"]
@@ -300,23 +299,23 @@ with col_l2:
         st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
         st.stop()
 
-    query_params = st.query_params
-    if "otp" in query_params:
-        st.title("🖋️ Accettazione Online")
-        cod_u = str(query_params.get("codice", "")).strip()
-        otp_u = str(query_params.get("otp", "")).strip()
+query_params = st.query_params
+if "otp" in query_params:
+    st.title("🖋️ Accettazione Online")
+    cod_u = str(query_params.get("codice", "")).strip()
+    otp_u = str(query_params.get("otp", "")).strip()
     
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(ttl=0)
-        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(ttl=0)
+    df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
 
-    if cod_u in df_c.values:
-        idx = df_c[df_c == cod_u].index[0]
-        try:
-            valore_totale = df.at[idx, "Totale"]
-            importo_totale = float(valore_totale)
-        except:
-            importo_totale = 0.0
+if cod_u in df_c.values:
+    idx = df_c[df_c == cod_u].index[0]
+    try:
+        valore_totale = df.at[idx, "Totale"]
+        importo_totale = float(valore_totale)
+    except:
+        importo_totale = 0.0
     
     otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
     if cod_u in df_c.values:
@@ -538,14 +537,6 @@ def format_franchigia(p):
     if round(val, 1) != val:
         return float(math.ceil(val))
     return val
-
-
-# --- VISTA CLIENTE (FIRMA) ---
-
-# --- NAVIGAZIONE PRINCIPALE ---
-st.sidebar.image("https://www.arera.it/logo_arera.png", width=100) # Opzionale: un logo
-st.sidebar.title("Menu Operativo")
-scelta = st.sidebar.radio("Seleziona attività:", ["Preventivo di Connessione", "Autoletture (TAL 0050)"])
 
 def formatta_data_italiana(data_raw):
     """Forza il formato GG/MM/AAAA richiesto dai portali"""
