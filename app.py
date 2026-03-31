@@ -538,10 +538,6 @@ elif scelta == "Preventivo di Connessione":
         if round(val, 1) != val:
             return float(math.ceil(val))
         return val
-      st.header("📝 Preventivo di Connessione")
     # Footer
     st.sidebar.divider()
     st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
-
-
-
