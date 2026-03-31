@@ -645,3 +645,42 @@ elif scelta == "Preventivo di Connessione":
     # Footer
     st.sidebar.divider()
     st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
+# Funzione per migrare i dati
+def migra_dati_su_postgres():
+    try:
+        # 1. Connessione a Google Sheets (usa il nome della tua connessione esistente)
+        conn_gsheets = st.connection("gsheets", type=GSheetsConnection)
+        df_excel = conn_gsheets.read(ttl="0") # Legge i dati attuali
+        
+        # 2. Connessione a PostgreSQL
+        conn_pg = st.connection("postgresql", type="sql")
+        
+        st.write(f"Trovati {len(df_excel)} record su Excel. Inizio migrazione...")
+
+        with conn_pg.session as s:
+            for index, row in df_excel.iterrows():
+                # Adatta i nomi delle colonne ('Codice', 'Cliente', ecc.) 
+                # a quelli esatti del tuo foglio Excel
+                s.execute(
+                    """
+                    INSERT INTO preventivi (codice, cliente, totale, otp, stato) 
+                    VALUES (:c, :cl, :t, :o, :s)
+                    ON CONFLICT (codice) DO NOTHING
+                    """,
+                    params={
+                        "c": str(row['Codice']), 
+                        "cl": str(row['Cliente']), 
+                        "t": float(pulisci_valore(row['Totale'])) if 'pulisci_valore' in globals() else row['Totale'],
+                        "o": str(row['OTP']),
+                        "s": 'ACCETTATO' if row.get('Firmato') == True else 'INVIATO'
+                    }
+                )
+            s.commit()
+        st.success("✅ Migrazione completata con successo!")
+    except Exception as e:
+        st.error(f"Errore durante la migrazione: {e}")
+
+# Aggiungi un tasto temporaneo nella sidebar (solo per te che sei loggato)
+if st.session_state.autenticato:
+    if st.sidebar.button("🚀 Travasa dati da Excel a DB"):
+        migra_dati_su_postgres()
