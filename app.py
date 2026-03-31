@@ -173,30 +173,30 @@ scelta_servizio = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connession
 
 # --- MODULO 1: PREVENTIVO ---
 if scelta_servizio == "Preventivo di Connessione":
-    # Logo
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-        try: st.image("logo_polis.png", width=250)
-        except: st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
-    # Secrets
+        # Logo
+        col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+        with col_l2:
+            try: st.image("logo_polis.png", width=250)
+            except: st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
+        # Secrets
     try:
-    SMTP_SERVER = st.secrets["EMAIL_SERVER"]
-    SMTP_PORT = st.secrets["EMAIL_PORT"]
-    SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
-    SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
-    MAIL_CC = st.secrets.get("EMAIL_CC", "")
-except:
-    st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
-    st.stop()
-query_params = st.query_params
-if "otp" in query_params:
-    st.title("🖋️ Accettazione Online")
-    cod_u = str(query_params.get("codice", "")).strip()
-    otp_u = str(query_params.get("otp", "")).strip()
+        SMTP_SERVER = st.secrets["EMAIL_SERVER"]
+        SMTP_PORT = st.secrets["EMAIL_PORT"]
+        SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
+        SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+        MAIL_CC = st.secrets.get("EMAIL_CC", "")
+    except:
+        st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
+        st.stop()
+    query_params = st.query_params
+    if "otp" in query_params:
+        st.title("🖋️ Accettazione Online")
+        cod_u = str(query_params.get("codice", "")).strip()
+        otp_u = str(query_params.get("otp", "")).strip()
     
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(ttl=0)
-    df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(ttl=0)
+        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
 
     if cod_u in df_c.values:
         idx = df_c[df_c == cod_u].index[0]
