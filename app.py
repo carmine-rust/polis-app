@@ -461,7 +461,6 @@ def pulisci_valore(valore):
     return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
 else:
 # --- MODULO AUTOLETTURE (TAL 0050) ---
-def modulo_autoletture():
     st.header("📊 Generatore Flussi Autoletture (TAL 0050)")
     
     # 1. Caricamento ARERA (da GitHub)
@@ -471,7 +470,7 @@ def modulo_autoletture():
         return
 
     # 2. Input Dati
-    piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="00000000000", help="Inserisci la tua Partita IVA")
+    piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="05050950657", help="Inserisci la tua Partita IVA")
 
     st.divider()
     st.subheader("📁 Caricamento File Privati")
