@@ -124,11 +124,11 @@ if "otp" in query_params and "codice" in query_params:
                         st.balloons()
                     else:
                         st.error("Documento non trovato nel database.")
-                except Exception as e:
-                    st.error(f"Errore tecnico: {e}")
-            else:
-                st.error("L'OTP inserito non è corretto.")
-    st.stop()
+        except Exception as e:
+            st.error(f"Errore tecnico: {e}")
+    else:
+        st.error("L'OTP inserito non è corretto.")
+st.stop()
 
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
