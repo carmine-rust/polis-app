@@ -155,7 +155,7 @@ if scelta == "Autoletture (TAL 0050)":
                 st.error(f"Errore durante l'elaborazione: {e}")
 st.stop()
 
-
+st.header("📝 Preventivo di Connessione")
 # --- 2. COSTANTI ---
 TIC_DOMESTICO_LE6 = 62.30  
 TIC_ALTRI_USI_BT = 78.81
@@ -182,26 +182,7 @@ st.markdown(f"""
     header {{visibility: hidden;}}
     </style>
 """, unsafe_allow_html=True)
-def formatta_data_italiana(data_raw):
-    d = str(data_raw).strip().split(' ')[0]
-    try:
-        parti = re.split(r'[/.-]', d)
-        if len(parti) == 3:
-            if len(parti[0]) == 4: # ISO
-                anno, mese, giorno = parti[0], parti[1].zfill(2), parti[2].zfill(2)
-            else: # ITA
-                giorno, mese, anno = parti[0].zfill(2), parti[1].zfill(2), parti[2]
-            if len(anno) == 2: anno = "20" + anno
-            return f"{giorno}/{mese}/{anno}"
-        return d
-    except: return d
-
-def pulisci_valore(valore):
-    val = str(valore).strip().lower()
-    if val in ["", "nan", "none", "0", "0,00", "0.00"]: return None
-    parte_intera = val.split(',')[0]
-    solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
-    return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
+    
 def genera_pdf_polis(d):
     pdf = FPDF()
     pdf.add_page()
