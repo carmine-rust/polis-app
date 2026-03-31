@@ -71,42 +71,40 @@ def pulisci_valore(valore):
         parte_intera = parte_intera.rsplit('.', 1)[0]
     solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
     return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
-    query_params = st.query_params
+query_params = st.query_params
     if "otp" in query_params and "codice" in query_params:
         st.title("🖋️ Accettazione Online")
     
-        cod_u = str(query_params.get("codice", "")).strip()
+        cod_u = str(query_params.get("codice", "")).strip().replace('.0', '')
         otp_u = str(query_params.get("otp", "")).strip()
-    
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(ttl=0)
-        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
-
-        if cod_u in df_c.values:
-            idx = df_c[df_c == cod_u].index[0]
-            importo_totale = float(df.at[idx, "Totale"])
-            nome_cliente = df.at[idx, "Cliente"]
-
-            st.warning(f"### 💳 Istruzioni per il pagamento\nImporto: **{importo_totale:.2f} EUR**...")
         
-            otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+        try:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            df = conn.read(ttl=0)
+            df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+
+            if cod_u in df_c.values:
+                idx = df_c[df_c == cod_u].index[0]
+                importo_totale = float(df.at[idx, "Totale"])
+                nome_cliente = df.at[idx, "Cliente"]
+
+                st.warning(f"### 💳 Istruzioni per il pagamento\nImporto: **{importo_totale:.2f} EUR**...")
         
-            if st.button("✅ FIRMA ORA"):
-                if otp_in.strip() == otp_u:
-                    try:
-                    # Ricarichiamo la connessione per sicurezza
-                        conn = st.connection("gsheets", type=GSheetsConnection)
+                otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+        
+                if st.button("✅ FIRMA ORA"):
+                    if otp_in.strip() == otp_u:
+                        # Ricarichiamo la connessione per sicurezza
                         df = conn.read(ttl=0)
-                        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+                        df.at[idx, "Stato"] = "ACCETTATO"
+                        df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        conn.update(data=df)
                     
                         if cod_u in df_c.values:
                             idx = df_c[df_c == cod_u].index[0]
                             nome_cliente = df.at[idx, "Cliente"]
-                        
-                            # --- AGGIORNAMENTO DATABASE (Allineamento corretto) ---
-                            df.at[idx, "Stato"] = "ACCETTATO"
-                            df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                            conn.update(data=df)
+                            importo_totale = float(df.at[idx, "Totale"])
+        
                         
                             # --- NOTIFICA EMAIL ---
                             msg = MIMEMultipart()
