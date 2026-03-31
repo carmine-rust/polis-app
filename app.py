@@ -160,6 +160,19 @@ if otp_param and codice_param:
         st.error(f"Errore tecnico nel caricamento: {e}")
         st.stop()
 
+st.sidebar.title("🔒 Area Riservata")
+password_segreta = "Polis2026"
+password_inserita = st.sidebar.text_input("Inserisci Password", type="password")
+
+if password_inserita != password_segreta:
+    if password_inserita:
+        st.sidebar.error("Password errata")
+
+    st.title("Polisenergia - Operation Suite")
+    st.info("Questa è un'area riservata. Se sei un cliente, usa il link ricevuto via mail.")
+    st.stop()
+
+st.sidebar.success("Accesso Autorizzato")
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
                          ["Autoletture (TAL 0050)", "Preventivo di Connessione"])
