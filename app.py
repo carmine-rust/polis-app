@@ -21,8 +21,35 @@ from email.mime.application import MIMEApplication
 # --- 1. CONFIGURAZIONE PAGINA (UNICA CHIAMATA) ---
 st.set_page_config(page_title="Operation Suite", layout="wide")
 
+def formatta_data_italiana(data_raw):
+    """Forza il formato GG/MM/AAAA richiesto dai portali"""
+    d = str(data_raw).strip().split(' ')[0]
+    try:
+        parti = re.split(r'[/.-]', d)
+        if len(parti) == 3:
+            if len(parti[0]) == 4: # ISO
+                anno, mese, giorno = parti[0], parti[1].zfill(2), parti[2].zfill(2)
+            else: # ITA
+                giorno, mese, anno = parti[0].zfill(2), parti[1].zfill(2), parti[2]
+            if len(anno) == 2: anno = "20" + anno
+            return f"{giorno}/{mese}/{anno}"
+        return d
+    except:
+        return d
+
+def pulisci_valore(valore):
+    """Pulisce i numeri di lettura per il formato XML (9 cifre)"""
+    val = str(valore).strip().lower()
+    if val in ["", "nan", "none", "0", "0,00", "0.00"]:
+        return None
+    parte_intera = val.split(',')[0]
+    if '.' in parte_intera and len(parte_intera.split('.')[-1]) <= 2:
+        parte_intera = parte_intera.rsplit('.', 1)[0]
+    solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
+    return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connessione", "Autoletture (TAL 0050)"])
+
 if scelta == "Autoletture (TAL 0050)":
     st.header("📊 Generatore Flussi Autoletture (TAL 0050)")
     file_arera_path = "arera.csv"
@@ -30,7 +57,6 @@ if scelta == "Autoletture (TAL 0050)":
         st.error("❌ File 'arera.csv' non trovato su GitHub. Caricalo nel repository per continuare.")
         st.stop()
     
-
     # 2. Input Dati
     piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="05050950657", help="Inserisci la tua Partita IVA")
 
@@ -127,10 +153,8 @@ if scelta == "Autoletture (TAL 0050)":
 
             except Exception as e:
                 st.error(f"Errore durante l'elaborazione: {e}")
+st.stop()
 
-# Footer
-st.sidebar.divider()
-st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
 
 # --- 2. COSTANTI ---
 TIC_DOMESTICO_LE6 = 62.30  
@@ -280,7 +304,6 @@ def genera_pdf_polis(d):
     # rimosso dest='S', fpdf2 gestisce l'output come byte stream
     return pdf.output()
 # --- 5. LOGICA DI NAVIGAZIONE ---
-scelta_servizio = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connessione", "Autoletture (TAL 0050)"], key="nav_principale")
 
 col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
 with col_l2:
@@ -506,15 +529,7 @@ if 'pdf_bytes' in st.session_state:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
         st.success("Email inviata!")
-# --- SIDEBAR DI NAVIGAZIONE ---
-st.sidebar.title("Navigazione")
-scelta_servizio = st.sidebar.radio(
-    "Cosa vuoi fare?", 
-    ["Preventivo di Connessione", "Autoletture (TAL 0050)"],
-    key="nav_principale" # La chiave evita conflitti con altri widget
-)
 # --- 3. LOGICA DI SEPARAZIONE ---
-if scelta_servizio == "Preventivo di Connessione":
     st.header("📝 Preventivo di Connessione")
 # --- CONFIGURAZIONE E COSTANTI ---
 st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
@@ -537,31 +552,9 @@ def format_franchigia(p):
     if round(val, 1) != val:
         return float(math.ceil(val))
     return val
+# Footer
+st.sidebar.divider()
+st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
 
-def formatta_data_italiana(data_raw):
-    """Forza il formato GG/MM/AAAA richiesto dai portali"""
-    d = str(data_raw).strip().split(' ')[0]
-    try:
-        parti = re.split(r'[/.-]', d)
-        if len(parti) == 3:
-            if len(parti[0]) == 4: # ISO
-                anno, mese, giorno = parti[0], parti[1].zfill(2), parti[2].zfill(2)
-            else: # ITA
-                giorno, mese, anno = parti[0].zfill(2), parti[1].zfill(2), parti[2]
-            if len(anno) == 2: anno = "20" + anno
-            return f"{giorno}/{mese}/{anno}"
-        return d
-    except:
-        return d
 
-def pulisci_valore(valore):
-    """Pulisce i numeri di lettura per il formato XML (9 cifre)"""
-    val = str(valore).strip().lower()
-    if val in ["", "nan", "none", "0", "0,00", "0.00"]:
-        return None
-    parte_intera = val.split(',')[0]
-    if '.' in parte_intera and len(parte_intera.split('.')[-1]) <= 2:
-        parte_intera = parte_intera.rsplit('.', 1)[0]
-    solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
-    return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
 
