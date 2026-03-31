@@ -29,7 +29,7 @@ if scelta == "Autoletture (TAL 0050)":
     if not os.path.exists(file_arera_path):
         st.error("❌ File 'arera.csv' non trovato su GitHub. Caricalo nel repository per continuare.")
         st.stop()
-        return
+    
 
     # 2. Input Dati
     piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="05050950657", help="Inserisci la tua Partita IVA")
