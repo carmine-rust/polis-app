@@ -9,7 +9,6 @@ import os
 import smtplib
 import ssl
 from sqlalchemy import text
-from st_gsheets_connection import GSheetsConnection
 from collections import defaultdict
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
@@ -647,41 +646,3 @@ elif scelta == "Preventivo di Connessione":
     # Footer
     st.sidebar.divider()
     st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
-# Funzione per migrare i dati
-def migra_dati_su_postgres():
-    try:
-        # USA QUESTO FORMATO ESPLICITO:
-        conn_gsheets = st.connection("gsheets", type=GSheetsConnection) 
-        df_excel = conn_gsheets.read(ttl="0")
-        
-        conn_pg = st.connection("postgresql", type="sql")
-        
-        st.write(f"Record trovati: {len(df_excel)}. Inizio...")
-
-        with conn_pg.session as s:
-            for index, row in df_excel.iterrows():
-                query_sql = text("""
-                    INSERT INTO preventivi (codice, cliente, totale, otp, stato) 
-                    VALUES (:c, :cl, :t, :o, :s)
-                    ON CONFLICT (codice) DO NOTHING
-                """)
-                
-                # Assicurati che i nomi tra parentesi ['...'] siano identici alle intestazioni del tuo Excel
-                s.execute(
-                    query_sql,
-                    params={
-                        "c": str(row['Codice']), 
-                        "cl": str(row['Cliente']), 
-                        "t": float(row['Totale']) if pd.notnull(row['Totale']) else 0.0,
-                        "o": str(row['OTP']),
-                        "s": 'ACCETTATO' if row.get('Firmato') == True else 'INVIATO'
-                    }
-                )
-            s.commit()
-        st.success("✅ MIGRAZIONE COMPLETATA! Ora puoi cancellare questo blocco di codice.")
-    except Exception as e:
-        st.error(f"Errore: {e}")
-
-# Questo tasto apparirà in cima a tutto, rosso e visibile
-if st.button("🚨 AVVIA MIGRAZIONE ORA (CLICCA UNA VOLTA)"):
-    migra_dati_su_postgres()
