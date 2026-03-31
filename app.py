@@ -23,18 +23,27 @@ st.set_page_config(page_title="Operation Suite", layout="wide")
 
 st.markdown("""
     <style>
+    /* Sfondo blu solo per l'area principale, non per la sidebar */
     .stApp { background-color: #004a99; }
-    h1, h2, h3, p, span, label, .stMarkdown { color: white !important; }
-    .stTextInput>div>div>input { background-color: white !important; color: black !important; }
+    
+    /* Testo bianco solo nell'area principale */
+    .stMain h1, .stMain h2, .stMain h3, .stMain p, .stMain label { color: white !important; }
+    
+    /* Correzione per la Sidebar (Menu a sinistra) - Testo scuro su sfondo chiaro */
+    [data-testid="stSidebar"] { background-color: #f0f2f6; }
+    [data-testid="stSidebar"] * { color: #004a99 !important; }
+
+    /* Input bianchi con testo nero */
+    .stTextInput input { background-color: white !important; color: black !important; }
+    
+    /* Bottone Genera Verde */
     div.stButton > button:first-child {
         background-color: #28a745 !important; color: white !important;
         border-radius: 8px !important; font-weight: bold !important; width: 100% !important;
     }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    header, footer {visibility: hidden;}
     </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True
 
 def formatta_data_italiana(data_raw):
     """Forza il formato GG/MM/AAAA richiesto dai portali"""
