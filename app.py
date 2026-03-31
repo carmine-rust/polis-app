@@ -506,6 +506,13 @@ if 'pdf_bytes' in st.session_state:
 st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
 
 # 3. APPLICA LO STILE
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # 4. LOGO (Subito dopo lo stile)
