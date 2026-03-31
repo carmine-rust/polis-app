@@ -9,6 +9,7 @@ import os
 import smtplib
 import ssl
 from sqlalchemy import text
+from st_gsheets_connection import GSheetsConnection
 from collections import defaultdict
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
@@ -649,9 +650,9 @@ elif scelta == "Preventivo di Connessione":
 # Funzione per migrare i dati
 def migra_dati_su_postgres():
     try:
-        # Sostituisci "gsheets" con il nome esatto della tua connessione gsheets
-        conn_gsheets = st.connection("gsheets", type="gsheets") 
-        df_excel = conn_gsheets.read(ttl="0") 
+        # USA QUESTO FORMATO ESPLICITO:
+        conn_gsheets = st.connection("gsheets", type=GSheetsConnection) 
+        df_excel = conn_gsheets.read(ttl="0")
         
         conn_pg = st.connection("postgresql", type="sql")
         
