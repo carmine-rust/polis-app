@@ -510,11 +510,8 @@ if 'pdf_bytes' in st.session_state:
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD); s.send_message(msg)
         st.success("Email inviata!")
-# --- 3. LOGICA DI SEPARAZIONE ---
-    st.header("📝 Preventivo di Connessione")
-# --- CONFIGURAZIONE E COSTANTI ---
+        
 st.set_page_config(page_title="Polis - Firma Elettronica", page_icon="🖋️")
-
 
 # 3. APPLICA LO STILE
 st.markdown(hide_st_style, unsafe_allow_html=True)
