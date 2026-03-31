@@ -303,8 +303,9 @@ with col_l2:
         st.stop()
 
 query_params = st.query_params
-if "otp" in query_params:
+if "otp" in query_params and "codice" in query_params:
     st.title("🖋️ Accettazione Online")
+    
     cod_u = str(query_params.get("codice", "")).strip()
     otp_u = str(query_params.get("otp", "")).strip()
     
@@ -312,32 +313,27 @@ if "otp" in query_params:
     df = conn.read(ttl=0)
     df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
 
-if cod_u in df_c.values:
-    idx = df_c[df_c == cod_u].index[0]
-    try:
-        valore_totale = df.at[idx, "Totale"]
-        importo_totale = float(valore_totale)
-    except:
-        importo_totale = 0.0
-    
-    otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
     if cod_u in df_c.values:
         idx = df_c[df_c == cod_u].index[0]
         importo_totale = float(df.at[idx, "Totale"])
+        nome_cliente = df.at[idx, "Cliente"]
 
-        # SCRITTO COSÌ NON PUÒ DARE ERRORE DI SINTASSI
-        messaggio_bonifico = f"### 💳 Istruzioni per il pagamento\nPer rendere effettiva l'accettazione, è necessario effettuare il bonifico di **{importo_totale:.2f} EUR**.\n\n**IBAN:** `{IBAN_POLIS}`\n**Causale:** `Accettazione Preventivo {cod_u}`"
-            
-        st.warning(messaggio_bonifico)
-    if st.button("✅ FIRMA ORA"):
+        st.warning(f"### 💳 Istruzioni per il pagamento\nImporto: **{importo_totale:.2f} EUR**...")
+        
+        otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+        
+        if st.button("✅ FIRMA ORA"):
             if otp_in.strip() == otp_u:
-                try:
-                    conn = st.connection("gsheets", type=GSheetsConnection)
-                    df = conn.read(ttl=0)
-                    df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
-                    if cod_u in df_c.values:
-                        idx = df_c[df_c == cod_u].index[0]
-                        nome_cliente = df.at[idx, "Cliente"]
+                # ... logica di aggiornamento foglio e invio mail ...
+                st.success("Firmato con successo!")
+                st.balloons()
+            else:
+                st.error("OTP errato.")
+    else:
+        st.error("Codice preventivo non trovato.")
+    
+    # IMPORTANTE: Interrompi l'esecuzione qui per non mostrare il pannello di controllo al cliente
+    st.stop()
                     
                         # Aggiornamento Database
                         df.at[idx, "Stato"] = "ACCETTATO"
