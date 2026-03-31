@@ -178,19 +178,27 @@ if otp_param and codice_param:
         st.error(f"Errore tecnico nel caricamento: {e}")
         st.stop()
 
-st.sidebar.title("🔒 Area Riservata")
-password_segreta = "Polis2026"
-password_inserita = st.sidebar.text_input("Inserisci Password", type="password")
+if "autenticato" not in st.session_state:
+    st.session_state.autenticato = False
 
-if password_inserita != password_segreta:
+if not st.session_state.autenticato:
+    st.sidebar.title("🔒 Area Riservata")
+    password_segreta = "Polis2026"
+    password_inserita = st.sidebar.text_input("Inserisci Password", type="password")
+
     if password_inserita:
-        st.sidebar.error("Password errata")
+        if password_inserita == password_segreta:
+            st.session_state.autenticato = True
+            st.rerun()  # Ricarica l'app per nascondere il form
+        else:
+            st.sidebar.error("Password errata")
 
+    # Messaggio centrale per chi non è loggato
     st.title("Polisenergia - Operation Suite")
     st.info("Questa è un'area riservata. Se sei un cliente, usa il link ricevuto via mail.")
-    st.stop()
+    st.stop() # Blocca qui l'esecuzione
 
-st.sidebar.success("Accesso Autorizzato")
+st.sidebar.success("✅ Accesso Autorizzato")
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
                          ["Autoletture (TAL 0050)", "Preventivo di Connessione"])
