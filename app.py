@@ -153,7 +153,6 @@ if scelta == "Autoletture (TAL 0050)":
 
             except Exception as e:
                 st.error(f"Errore durante l'elaborazione: {e}")
-st.stop()
 
 st.header("📝 Preventivo di Connessione")
 # --- 2. COSTANTI ---
