@@ -27,13 +27,13 @@ INTESTATARIO = "POLISENERGIA SRL"
 
 st.markdown("""
     <style>
-    /* Sfondo blu solo per l'area principale, non per la sidebar */
+    /* Sfondo blu solo per l'area principale */
     .stApp { background-color: #004a99; }
     
     /* Testo bianco solo nell'area principale */
     .stMain h1, .stMain h2, .stMain h3, .stMain p, .stMain label { color: white !important; }
     
-    /* Correzione per la Sidebar (Menu a sinistra) - Testo scuro su sfondo chiaro */
+    /* Sidebar (Menu a sinistra) - Testo scuro su sfondo chiaro */
     [data-testid="stSidebar"] { background-color: #f0f2f6; }
     [data-testid="stSidebar"] * { color: #004a99 !important; }
 
@@ -45,7 +45,25 @@ st.markdown("""
         background-color: #28a745 !important; color: white !important;
         border-radius: 8px !important; font-weight: bold !important; width: 100% !important;
     }
-    header, footer {visibility: hidden;}
+
+    /* --- GESTIONE FRECCETTA SIDEBAR --- */
+    /* Rendiamo visibile l'header (che contiene la freccetta) ma nascondiamo il resto dei menu superflui */
+    header { visibility: visible !important; background: transparent !important; }
+    footer { visibility: hidden; }
+
+    /* Forza la freccetta di apertura a essere BIANCA e visibile sul blu */
+    [data-testid="stSidebarCollapsedControl"] {
+        color: white !important;
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        border-radius: 50% !important;
+        left: 10px !important;
+        top: 10px !important;
+    }
+    
+    /* Colore dell'icona SVG interna alla freccetta */
+    [data-testid="stSidebarCollapsedControl"] svg {
+        fill: white !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
