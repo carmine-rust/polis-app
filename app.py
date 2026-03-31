@@ -19,7 +19,117 @@ from email.mime.application import MIMEApplication
 
 
 # --- 1. CONFIGURAZIONE PAGINA (UNICA CHIAMATA) ---
-st.set_page_config(page_title="PolisEnergia Suite", layout="wide", page_icon="🖋️")
+st.set_page_config(page_title="Operation Suite", layout="wide")
+
+st.sidebar.title("Navigazione")
+scelta = st.sidebar.radio("Cosa vuoi fare?", ["Preventivo di Connessione", "Autoletture (TAL 0050)"])
+if scelta == "Autoletture (TAL 0050)":
+    st.header("📊 Generatore Flussi Autoletture (TAL 0050)")
+file_arera_path = "arera.csv"
+    if not os.path.exists(file_arera_path):
+        st.error("❌ File 'arera.csv' non trovato su GitHub. Caricalo nel repository per continuare.")
+        return
+
+    # 2. Input Dati
+    piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="05050950657", help="Inserisci la tua Partita IVA")
+
+    st.divider()
+    st.subheader("📁 Caricamento File Privati")
+    st.caption("I dati caricati qui non vengono salvati sul server e spariscono alla chiusura della pagina.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        file_tech = st.file_uploader("1. Carica Anagrafica Tecnica (Excel)", type=["xlsx", "xls"])
+    with col2:
+        file_letture = st.file_uploader("2. Carica File Autoletture (CSV)", type="csv")
+
+    if file_tech and file_letture:
+        if st.button("🚀 GENERA FILE XML", use_container_width=True):
+            try:
+                # Lettura ARERA
+                df_arera = pd.read_csv(file_arera_path, encoding='latin-1', sep=';', on_bad_lines='skip', dtype=str)
+                df_arera.columns = [c.strip().upper() for c in df_arera.columns]
+                
+                mappa_distr = {}
+                for _, r in df_arera.iterrows():
+                    pref = str(r['CODICE PDR']).strip().split('.')[0].zfill(4)
+                    piva_d = "".join(filter(str.isdigit, str(r['PARTITA IVA'])))[:11].zfill(11)
+                    mappa_distr[pref] = {'piva': piva_d, 'nome': str(r['RAGIONE SOCIALE']).strip()}
+
+                # Lettura Anagrafica Tecnica
+                df_tech = pd.read_excel(file_tech, dtype=str)
+                df_tech.columns = [c.strip().upper() for c in df_tech.columns]
+                mappa_matr_pdr = pd.Series(df_tech['MATR_MIS'].values, index=df_tech.COD_PDR.str.strip()).to_dict()
+                c_matr_corr = next((c for c in df_tech.columns if 'CORR' in c), None)
+                mappa_matr_corr = pd.Series(df_tech[c_matr_corr].values, index=df_tech.COD_PDR.str.strip()).to_dict() if c_matr_corr else {}
+
+                # Lettura Autoletture
+                df_let = pd.read_csv(file_letture, sep=None, engine='python', encoding='utf-8-sig', dtype=str)
+                df_let.columns = [c.strip().upper() for c in df_let.columns]
+                
+                col_pdr = next(c for c in df_let.columns if 'PDR' in c)
+                col_data = next(c for c in df_let.columns if 'DATA' in c)
+                col_lett = next(c for c in df_let.columns if 'LETTURA' in c and 'CORRE' not in c)
+                col_corr = next((c for c in df_let.columns if 'CORRETTORE' in c or 'CONVERT' in c), None)
+
+                # Raggruppamento
+                gruppi = defaultdict(list)
+                for _, riga in df_let.iterrows():
+                    pdr = str(riga[col_pdr]).strip().split('.')[0].zfill(14)
+                    pref = pdr[:4]
+                    if pref in mappa_distr:
+                        info = mappa_distr[pref]
+                        ln = pulisci_valore(riga[col_lett])
+                        lc = pulisci_valore(riga[col_corr]) if col_corr else None
+                        if ln:
+                            gruppi[info['piva']].append({
+                                'distr_nome': info['nome'], 'pdr': pdr, 
+                                'data': formatta_data_italiana(riga[col_data]),
+                                'lett': ln, 'corr': lc,
+                                'm_pdr': str(mappa_matr_pdr.get(pdr, "0")).split('.')[0],
+                                'm_corr': str(mappa_matr_corr.get(pdr, "")).split('.')[0] if pdr in mappa_matr_corr else None
+                            })
+
+                # Risultati e Download
+                st.success(f"Elaborazione completata! Trovati {len(gruppi)} distributori.")
+                st.divider()
+
+                for piva_d, lista in gruppi.items():
+                    # Creazione XML
+                    root = ET.Element("Prestazione", cod_servizio="TAL", cod_flusso="0050")
+                    id_req = ET.SubElement(root, "IdentificativiRichiesta")
+                    ET.SubElement(id_req, "piva_utente").text = piva_mittente
+                    ET.SubElement(id_req, "piva_distr").text = piva_d
+                    
+                    for item in lista:
+                        d = ET.SubElement(root, "DatiPdR")
+                        ET.SubElement(d, "cod_pdr").text = item['pdr']
+                        ET.SubElement(d, "matr_mis").text = item['m_pdr']
+                        ET.SubElement(d, "data_com_autolet_cf").text = item['data']
+                        ET.SubElement(d, "let_tot_prel").text = item['lett']
+                        if item['corr']:
+                            ET.SubElement(d, "let_tot_conv").text = item['corr']
+                            if item['m_corr'] and item['m_corr'] not in ["nan", "None", ""]:
+                                ET.SubElement(d, "matr_conv").text = item['m_corr']
+
+                    # Preparazione file per scaricamento
+                    xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+                    clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
+                    
+                    st.download_button(
+                        label=f"⬇️ Scarica XML: {lista[0]['distr_nome']} ({piva_d})",
+                        data=xml_str,
+                        file_name=f"TAL_0050_{piva_d}_{clean_name}.xml",
+                        mime="application/xml",
+                        key=piva_d # Chiave univoca per streamlit
+                    )
+
+            except Exception as e:
+                st.error(f"Errore durante l'elaborazione: {e}")
+
+# Footer
+st.sidebar.divider()
+st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
 
 # --- 2. COSTANTI ---
 TIC_DOMESTICO_LE6 = 62.30  
@@ -466,113 +576,4 @@ def pulisci_valore(valore):
         parte_intera = parte_intera.rsplit('.', 1)[0]
     solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
     return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
-else:
-# --- MODULO AUTOLETTURE (TAL 0050) ---
-    st.header("📊 Generatore Flussi Autoletture (TAL 0050)")
-    
-    # 1. Caricamento ARERA (da GitHub)
-    file_arera_path = "arera.csv"
-    if not os.path.exists(file_arera_path):
-        st.error("❌ File 'arera.csv' non trovato su GitHub. Caricalo nel repository per continuare.")
-        return
 
-    # 2. Input Dati
-    piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="05050950657", help="Inserisci la tua Partita IVA")
-
-    st.divider()
-    st.subheader("📁 Caricamento File Privati")
-    st.caption("I dati caricati qui non vengono salvati sul server e spariscono alla chiusura della pagina.")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        file_tech = st.file_uploader("1. Carica Anagrafica Tecnica (Excel)", type=["xlsx", "xls"])
-    with col2:
-        file_letture = st.file_uploader("2. Carica File Autoletture (CSV)", type="csv")
-
-    if file_tech and file_letture:
-        if st.button("🚀 GENERA FILE XML", use_container_width=True):
-            try:
-                # Lettura ARERA
-                df_arera = pd.read_csv(file_arera_path, encoding='latin-1', sep=';', on_bad_lines='skip', dtype=str)
-                df_arera.columns = [c.strip().upper() for c in df_arera.columns]
-                
-                mappa_distr = {}
-                for _, r in df_arera.iterrows():
-                    pref = str(r['CODICE PDR']).strip().split('.')[0].zfill(4)
-                    piva_d = "".join(filter(str.isdigit, str(r['PARTITA IVA'])))[:11].zfill(11)
-                    mappa_distr[pref] = {'piva': piva_d, 'nome': str(r['RAGIONE SOCIALE']).strip()}
-
-                # Lettura Anagrafica Tecnica
-                df_tech = pd.read_excel(file_tech, dtype=str)
-                df_tech.columns = [c.strip().upper() for c in df_tech.columns]
-                mappa_matr_pdr = pd.Series(df_tech['MATR_MIS'].values, index=df_tech.COD_PDR.str.strip()).to_dict()
-                c_matr_corr = next((c for c in df_tech.columns if 'CORR' in c), None)
-                mappa_matr_corr = pd.Series(df_tech[c_matr_corr].values, index=df_tech.COD_PDR.str.strip()).to_dict() if c_matr_corr else {}
-
-                # Lettura Autoletture
-                df_let = pd.read_csv(file_letture, sep=None, engine='python', encoding='utf-8-sig', dtype=str)
-                df_let.columns = [c.strip().upper() for c in df_let.columns]
-                
-                col_pdr = next(c for c in df_let.columns if 'PDR' in c)
-                col_data = next(c for c in df_let.columns if 'DATA' in c)
-                col_lett = next(c for c in df_let.columns if 'LETTURA' in c and 'CORRE' not in c)
-                col_corr = next((c for c in df_let.columns if 'CORRETTORE' in c or 'CONVERT' in c), None)
-
-                # Raggruppamento
-                gruppi = defaultdict(list)
-                for _, riga in df_let.iterrows():
-                    pdr = str(riga[col_pdr]).strip().split('.')[0].zfill(14)
-                    pref = pdr[:4]
-                    if pref in mappa_distr:
-                        info = mappa_distr[pref]
-                        ln = pulisci_valore(riga[col_lett])
-                        lc = pulisci_valore(riga[col_corr]) if col_corr else None
-                        if ln:
-                            gruppi[info['piva']].append({
-                                'distr_nome': info['nome'], 'pdr': pdr, 
-                                'data': formatta_data_italiana(riga[col_data]),
-                                'lett': ln, 'corr': lc,
-                                'm_pdr': str(mappa_matr_pdr.get(pdr, "0")).split('.')[0],
-                                'm_corr': str(mappa_matr_corr.get(pdr, "")).split('.')[0] if pdr in mappa_matr_corr else None
-                            })
-
-                # Risultati e Download
-                st.success(f"Elaborazione completata! Trovati {len(gruppi)} distributori.")
-                st.divider()
-
-                for piva_d, lista in gruppi.items():
-                    # Creazione XML
-                    root = ET.Element("Prestazione", cod_servizio="TAL", cod_flusso="0050")
-                    id_req = ET.SubElement(root, "IdentificativiRichiesta")
-                    ET.SubElement(id_req, "piva_utente").text = piva_mittente
-                    ET.SubElement(id_req, "piva_distr").text = piva_d
-                    
-                    for item in lista:
-                        d = ET.SubElement(root, "DatiPdR")
-                        ET.SubElement(d, "cod_pdr").text = item['pdr']
-                        ET.SubElement(d, "matr_mis").text = item['m_pdr']
-                        ET.SubElement(d, "data_com_autolet_cf").text = item['data']
-                        ET.SubElement(d, "let_tot_prel").text = item['lett']
-                        if item['corr']:
-                            ET.SubElement(d, "let_tot_conv").text = item['corr']
-                            if item['m_corr'] and item['m_corr'] not in ["nan", "None", ""]:
-                                ET.SubElement(d, "matr_conv").text = item['m_corr']
-
-                    # Preparazione file per scaricamento
-                    xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-                    clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
-                    
-                    st.download_button(
-                        label=f"⬇️ Scarica XML: {lista[0]['distr_nome']} ({piva_d})",
-                        data=xml_str,
-                        file_name=f"TAL_0050_{piva_d}_{clean_name}.xml",
-                        mime="application/xml",
-                        key=piva_d # Chiave univoca per streamlit
-                    )
-
-            except Exception as e:
-                st.error(f"Errore durante l'elaborazione: {e}")
-
-# Footer
-st.sidebar.divider()
-st.sidebar.caption(f"Versione Web 1.0 - {datetime.now().year}")
