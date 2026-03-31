@@ -146,7 +146,7 @@ if otp_param and codice_param:
                     df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                     conn.update(data=df)
                     
-                    # 2. Invio Notifica Email (Carmine)
+                    # 2. Invio Notifica Email
                     try:
                         msg = MIMEMultipart()
                         msg['From'] = SENDER_EMAIL
@@ -181,6 +181,39 @@ if otp_param and codice_param:
 if "autenticato" not in st.session_state:
     st.session_state.autenticato = False
 
+# La sidebar si espande da sola solo se non sei ancora loggato
+stato_sidebar = "expanded" if not st.session_state.autenticato else "auto"
+
+st.set_page_config(
+    page_title="Polisenergia Suite", 
+    layout="wide", 
+    initial_sidebar_state=stato_sidebar
+)
+
+# --- 2. CSS PERSONALIZZATO (Sfondo, Testi e Freccetta Bianca) ---
+st.markdown("""
+    <style>
+    .stApp { background-color: #004a99; }
+    .stMain h1, .stMain h2, .stMain h3, .stMain p, .stMain label { color: white !important; }
+    [data-testid="stSidebar"] { background-color: #f0f2f6; }
+    [data-testid="stSidebar"] * { color: #004a99 !important; }
+    .stTextInput input { background-color: white !important; color: black !important; }
+    div.stButton > button:first-child {
+        background-color: #28a745 !important; color: white !important;
+        border-radius: 8px !important; font-weight: bold !important; width: 100% !important;
+    }
+    header { visibility: visible !important; background: transparent !important; }
+    footer { visibility: hidden; }
+    [data-testid="stSidebarCollapsedControl"] {
+        color: white !important;
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        border-radius: 50% !important;
+        left: 10px !important;
+        top: 10px !important;
+    }
+    [data-testid="stSidebarCollapsedControl"] svg { fill: white !important; }
+    </style>
+""", unsafe_allow_html=True)
 if not st.session_state.autenticato:
     st.sidebar.title("🔒 Area Riservata")
     password_segreta = "Polis2026"
@@ -189,15 +222,16 @@ if not st.session_state.autenticato:
     if password_inserita:
         if password_inserita == password_segreta:
             st.session_state.autenticato = True
-            st.rerun()  # Ricarica l'app per nascondere il form
+            st.rerun() 
         else:
             st.sidebar.error("Password errata")
 
-    # Messaggio centrale per chi non è loggato
+    # Schermata che vede chi apre l'app senza link e senza password
     st.title("Polisenergia - Operation Suite")
-    st.info("Questa è un'area riservata. Se sei un cliente, usa il link ricevuto via mail.")
-    st.stop() # Blocca qui l'esecuzione
+    st.info("Effettua il login nella barra laterale per accedere.")
+    st.stop() 
 
+# --- 5. ACCESSO AUTORIZZATO (SUITE COMPLETA) ---
 st.sidebar.success("✅ Accesso Autorizzato")
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
