@@ -71,6 +71,67 @@ def pulisci_valore(valore):
         parte_intera = parte_intera.rsplit('.', 1)[0]
     solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
     return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
+    query_params = st.query_params
+    if "otp" in query_params and "codice" in query_params:
+        st.title("🖋️ Accettazione Online")
+    
+        cod_u = str(query_params.get("codice", "")).strip()
+        otp_u = str(query_params.get("otp", "")).strip()
+    
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(ttl=0)
+        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+
+        if cod_u in df_c.values:
+            idx = df_c[df_c == cod_u].index[0]
+            importo_totale = float(df.at[idx, "Totale"])
+            nome_cliente = df.at[idx, "Cliente"]
+
+            st.warning(f"### 💳 Istruzioni per il pagamento\nImporto: **{importo_totale:.2f} EUR**...")
+        
+            otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
+        
+            if st.button("✅ FIRMA ORA"):
+                if otp_in.strip() == otp_u:
+                    try:
+                    # Ricarichiamo la connessione per sicurezza
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        df = conn.read(ttl=0)
+                        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
+                    
+                        if cod_u in df_c.values:
+                            idx = df_c[df_c == cod_u].index[0]
+                            nome_cliente = df.at[idx, "Cliente"]
+                        
+                            # --- AGGIORNAMENTO DATABASE (Allineamento corretto) ---
+                            df.at[idx, "Stato"] = "ACCETTATO"
+                            df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                            conn.update(data=df)
+                        
+                            # --- NOTIFICA EMAIL ---
+                            msg = MIMEMultipart()
+                            msg['From'] = SENDER_EMAIL
+                            msg['To'] = SENDER_EMAIL
+                            msg['cc'] = MAIL_CC
+                            msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente}"
+                        
+                            corpo_mail = f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}."
+                            msg.attach(MIMEText(corpo_mail, 'plain'))
+                        
+                            with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
+                                s.login(SENDER_EMAIL, SENDER_PASSWORD)
+                                s.send_message(msg)
+                            
+                            st.success("Firmato!")
+                            st.balloons()
+                        else:
+                            st.error("Documento non trovato nel database.")
+                    except Exception as e:
+                        st.error(f"Errore tecnico: {e}")
+                else:
+                    st.error("L'OTP inserito non è corretto.")
+        st.stop()
+
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
                          ["Autoletture (TAL 0050)", "Preventivo di Connessione"])
@@ -330,66 +391,6 @@ elif scelta == "Preventivo di Connessione":
             st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
             st.stop()
 
-    query_params = st.query_params
-    if "otp" in query_params and "codice" in query_params:
-        st.title("🖋️ Accettazione Online")
-    
-        cod_u = str(query_params.get("codice", "")).strip()
-        otp_u = str(query_params.get("otp", "")).strip()
-    
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(ttl=0)
-        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
-
-        if cod_u in df_c.values:
-            idx = df_c[df_c == cod_u].index[0]
-            importo_totale = float(df.at[idx, "Totale"])
-            nome_cliente = df.at[idx, "Cliente"]
-
-            st.warning(f"### 💳 Istruzioni per il pagamento\nImporto: **{importo_totale:.2f} EUR**...")
-        
-            otp_in = st.text_input("Inserisci OTP ricevuto via mail", max_chars=6)
-        
-            if st.button("✅ FIRMA ORA"):
-                if otp_in.strip() == otp_u:
-                    try:
-                    # Ricarichiamo la connessione per sicurezza
-                        conn = st.connection("gsheets", type=GSheetsConnection)
-                        df = conn.read(ttl=0)
-                        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '', regex=False)
-                    
-                        if cod_u in df_c.values:
-                            idx = df_c[df_c == cod_u].index[0]
-                            nome_cliente = df.at[idx, "Cliente"]
-                        
-                            # --- AGGIORNAMENTO DATABASE (Allineamento corretto) ---
-                            df.at[idx, "Stato"] = "ACCETTATO"
-                            df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                            conn.update(data=df)
-                        
-                            # --- NOTIFICA EMAIL ---
-                            msg = MIMEMultipart()
-                            msg['From'] = SENDER_EMAIL
-                            msg['To'] = SENDER_EMAIL
-                            msg['cc'] = MAIL_CC
-                            msg['Subject'] = f"✅ ACCETTAZIONE: {nome_cliente}"
-                        
-                            corpo_mail = f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}."
-                            msg.attach(MIMEText(corpo_mail, 'plain'))
-                        
-                            with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=ssl.create_default_context()) as s:
-                                s.login(SENDER_EMAIL, SENDER_PASSWORD)
-                                s.send_message(msg)
-                            
-                            st.success("Firmato!")
-                            st.balloons()
-                        else:
-                            st.error("Documento non trovato nel database.")
-                    except Exception as e:
-                        st.error(f"Errore tecnico: {e}")
-                else:
-                    st.error("L'OTP inserito non è corretto.")
-        st.stop()
 
     # --- VISTA CARMINE ---
     st.title("⚡ PolisEnergia - Gestione Preventivi")
