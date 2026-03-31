@@ -21,6 +21,10 @@ from email.mime.application import MIMEApplication
 # --- 1. CONFIGURAZIONE PAGINA (UNICA CHIAMATA) ---
 st.set_page_config(page_title="Operation Suite", layout="wide")
 
+IBAN_POLIS = "IT80P0103015200000007044056" 
+NOME_BANCA = "Monte dei Paschi di Siena"
+INTESTATARIO = "POLISENERGIA SRL"
+
 st.markdown("""
     <style>
     /* Sfondo blu solo per l'area principale, non per la sidebar */
