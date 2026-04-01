@@ -356,7 +356,7 @@ if not st.session_state.autenticato:
 st.sidebar.success("✅ Accesso Autorizzato")
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
-                         ["Autoletture ", "Preventivo di Connessione"])
+                         ["Autoletture", "Preventivo di Connessione"])
 
 
 if scelta == "Autoletture":
