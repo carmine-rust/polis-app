@@ -617,8 +617,8 @@ elif scelta == "Preventivo di Connessione":
                         st.success("Email inviata con successo!")
                 except Exception as e:
                     st.error(f"Errore: {e}")
-            except Exception as e:
-                st.error(f"Errore durante l'invio: {e}")
+                except Exception as e:
+                    st.error(f"Errore durante l'invio: {e}")
 else:
     # Se il PDF non è ancora stato generato, mostriamo un piccolo avviso amichevole
     st.info("ℹ️ Completa la generazione del PDF per abilitare l'invio della mail.")
