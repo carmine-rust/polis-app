@@ -372,22 +372,10 @@ elif scelta == "Preventivo di Connessione":
         header {{visibility: hidden;}}
         </style>
     """, unsafe_allow_html=True)
-    
-    def genera_pdf_polis(d):
-        pdf = FPDF()
-        pdf.add_page()
-    
-    # --- COLORI BRAND ---
-        BLUE_P = (0, 51, 102)
-        GRAY_LIGHT = (245, 245, 245)
-        GRAY_TEXT = (60, 60, 60)
 
-    # --- HEADER BLU ---
-        pdf.set_fill_color(*BLUE_P)
-        pdf.rect(0, 0, 210, 45, 'F')
     
     # Logo o Nome Azienda
-def genera_pdf_test(d):
+def genera_pdf_polis(d):
     pdf = FPDF()
     pdf.add_page()
     
