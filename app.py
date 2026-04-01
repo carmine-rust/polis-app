@@ -607,7 +607,7 @@ def genera_pdf_test(d):
     pdf.cell(0, 5, "Firma per Accettazione Cliente", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.line(140, pdf.get_y() + 15, 200, pdf.get_y() + 15)
 
-    return pdf.output()
+    return bytes(pdf.output())
   
     # --- 5. LOGICA DI NAVIGAZIONE ---
 
