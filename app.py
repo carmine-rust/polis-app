@@ -94,6 +94,126 @@ def pulisci_valore(valore):
         parte_intera = parte_intera.rsplit('.', 1)[0]
     solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
     return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
+def genera_pdf_polis(d):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- COLORI BRAND ---
+    BLUE_P = (0, 51, 102)
+    GRAY_LIGHT = (245, 245, 245)
+    GRAY_TEXT = (60, 60, 60)
+
+    # --- HEADER BLU ---
+    pdf.set_fill_color(*BLUE_P)
+    pdf.rect(0, 0, 210, 45, 'F')
+    
+    # Logo o Nome Azienda
+    try:
+        pdf.image("logo_polis.png", 10, 12, 35)
+    except:
+        pdf.set_xy(10, 15)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("helvetica", "B", 20)
+        pdf.cell(0, 10, "PolisEnergia srl")
+
+    # Dati Aziendali
+    pdf.set_xy(120, 12)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("helvetica", "", 8)
+    pdf.multi_cell(80, 4, "Via Terre delle Risaie, 4 - 84131 Salerno (SA)\nP.IVA 05050950657\nassistenza@polisenergia.it\nwww.polisenergia.it", align='R')
+
+    # --- TITOLO E DATA ---
+    pdf.set_xy(10, 55)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("helvetica", "B", 16)
+    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", "", 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 6, f"Emesso il: {datetime.now().strftime('%d/%m/%Y')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # --- DATI CLIENTE (Box elegante) ---
+    pdf.ln(8)
+    pdf.set_fill_color(*GRAY_LIGHT)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 10, f"  SPETT.LE CLIENTE: {d['Cliente']}", fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", "", 10)
+    pdf.set_text_color(*GRAY_TEXT)
+    pdf.cell(0, 7, f"  POD: {d['POD']} | Indirizzo: {d['Indirizzo']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # --- TABELLA PRESTAZIONI ---
+    pdf.ln(10)
+    pdf.set_draw_color(220, 220, 220)
+    pdf.set_line_width(0.2)
+    
+    pdf.set_font("helvetica", "B", 10)
+    pdf.set_fill_color(*BLUE_P)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(140, 10, "  DESCRIZIONE PRESTAZIONE", border='B', fill=True)
+    pdf.cell(50, 10, "IMPORTO  ", border='B', fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_text_color(*GRAY_TEXT)
+    voci = [
+        ("Quota Tecnica", d['C_Tec']),
+        ("Oneri Amministrativi", d['Oneri']),
+        ("Oneri Gestione Pratica", d['Gestione'])
+    ]
+    
+    fill = False
+    for voce, importo in voci:
+        pdf.set_fill_color(250, 250, 250) if fill else pdf.set_fill_color(255, 255, 255)
+        pdf.set_font("helvetica", "", 10)
+        pdf.cell(140, 9, f"  {voce}", border='B', fill=True)
+        pdf.cell(50, 9, f"{importo:.2f} EUR  ", border='B', fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        fill = not fill
+
+    # --- TOTALI ---
+    pdf.ln(3)
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(140, 8, "Totale Imponibile", align='R')
+    pdf.cell(50, 8, f"{d['Imponibile']:.2f} EUR  ", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.cell(140, 8, f"IVA ({d['IVA_Perc']}%)", align='R')
+    pdf.cell(50, 8, f"{d['IVA_Euro']:.2f} EUR  ", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.ln(2)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.set_text_color(*BLUE_P)
+    pdf.set_fill_color(230, 240, 250)
+    pdf.cell(140, 12, "  TOTALE DA CORRISPONDERE", fill=True)
+    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR  ", fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # --- PAGAMENTO ---
+    pdf.ln(10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", "", 9)
+    pdf.cell(0, 5, f"Bonifico Bancario IBAN: {d['IBAN']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("helvetica", "I", 9)
+    pdf.cell(0, 5, f"CAUSALE OBBLIGATORIA: Accettazione Preventivo {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # Note
+    pdf.set_y(-65)
+    pdf.set_font("helvetica", "", 7)
+    pdf.set_text_color(120, 120, 120)
+    note = [
+        "L'esecuzione della prestazione è subordinata al verificarsi delle seguenti condizioni:",
+        "- conferma della proposta pervenuta entro 30 gg dalla presente richiesta;",
+        "- comunicazione dell'avvenuto completamento di eventuali opere/autorizzazioni a cura del cliente finale.",
+        "Il presente documento deve essere inviato firmato a: assistenza@polisenergia.it"
+    ]
+    for riga in note:
+        pdf.cell(0, 3.5, riga, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # Firma
+    pdf.set_y(-35)
+    pdf.set_font("helvetica", "B", 9)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 5, "Firma per Accettazione Cliente", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.line(140, pdf.get_y() + 15, 200, pdf.get_y() + 15)
+
+    return bytes(pdf.output())
 
 query_params = st.query_params
 
@@ -345,8 +465,7 @@ if scelta == "Autoletture (TAL 0050)":
 
 elif scelta == "Preventivo di Connessione":
     
-    
-# --- 2. COSTANTI ---
+    # --- COSTANTI ---
     TIC_DOMESTICO_LE6 = 62.30  
     TIC_ALTRI_USI_BT = 78.81
     TIC_MT = 62.74
@@ -355,175 +474,33 @@ elif scelta == "Preventivo di Connessione":
     FISSO_BASE_CALCOLO = 25.88
     COSTO_PASSAGGIO_MT = 494.83
     IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena"
+    
+    # --- INIZIALIZZAZIONE VARIABILI (Evita l'errore NameError riga 595) ---
+    delta, tar, c_tec, c_gest, imp, totale = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    p_att, p_new, c_dist = 0.0, 0.0, 0.0
+    passaggio_mt = False
+    t_partenza = "BT"
 
-    # --- 3. STILE CSS ---
-    primary_blue = "#004a99" 
-    st.markdown(f"""
+    # --- STILE CSS ---
+    st.markdown("""
         <style>
-        .stApp {{ background-color: {primary_blue}; }}
-        h1, h2, h3, p, span, label, .stMarkdown {{ color: white !important; }}
-        .stTextInput>div>div>input {{ background-color: white !important; color: black !important; }}
-        div.stButton > button:first-child {{
-            background-color: #28a745 !important; color: white !important;
-            border-radius: 8px !important; font-weight: bold !important; width: 100% !important;
-        }}
-        #MainMenu {{visibility: hidden;}}
-        footer {{visibility: hidden;}}
-        header {{visibility: hidden;}}
+        .stApp { background-color: #004a99; }
+        h1, h2, h3, p, span, label, .stMarkdown { color: white !important; }
+        .stTextInput>div>div>input { background-color: white !important; color: black !important; }
+        div.stButton > button:first-child { background-color: #28a745 !important; color: white !important; border-radius: 8px; font-weight: bold; width: 100%; }
         </style>
     """, unsafe_allow_html=True)
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
+        try: st.image("logo_polis.png", width=250)
+        except: st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
 
-    
-    # Logo o Nome Azienda
-def genera_pdf_polis(d):
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # --- COLORI BRAND ---
-    BLUE_P = (0, 51, 102)
-    GRAY_LIGHT = (245, 245, 245)
-    GRAY_TEXT = (60, 60, 60)
-
-    # --- HEADER BLU ---
-    pdf.set_fill_color(*BLUE_P)
-    pdf.rect(0, 0, 210, 45, 'F')
-    
-    # Logo o Nome Azienda
-    try:
-        pdf.image("logo_polis.png", 10, 12, 35)
-    except:
-        pdf.set_xy(10, 15)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font("helvetica", "B", 20)
-        pdf.cell(0, 10, "PolisEnergia srl")
-
-    # Dati Aziendali
-    pdf.set_xy(120, 12)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("helvetica", "", 8)
-    pdf.multi_cell(80, 4, "Via Terre delle Risaie, 4 - 84131 Salerno (SA)\nP.IVA 05050950657\nassistenza@polisenergia.it\nwww.polisenergia.it", align='R')
-
-    # --- TITOLO E DATA ---
-    pdf.set_xy(10, 55)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("helvetica", "B", 16)
-    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "", 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, f"Emesso il: {datetime.now().strftime('%d/%m/%Y')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # --- DATI CLIENTE (Box elegante) ---
-    pdf.ln(8)
-    pdf.set_fill_color(*GRAY_LIGHT)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 10, f"  SPETT.LE CLIENTE: {d['Cliente']}", fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "", 10)
-    pdf.set_text_color(*GRAY_TEXT)
-    pdf.cell(0, 7, f"  POD: {d['POD']} | Indirizzo: {d['Indirizzo']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # --- TABELLA PRESTAZIONI ---
-    pdf.ln(10)
-    pdf.set_draw_color(220, 220, 220)
-    pdf.set_line_width(0.2)
-    
-    pdf.set_font("helvetica", "B", 10)
-    pdf.set_fill_color(*BLUE_P)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(140, 10, "  DESCRIZIONE PRESTAZIONE", border='B', fill=True)
-    pdf.cell(50, 10, "IMPORTO  ", border='B', fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.set_text_color(*GRAY_TEXT)
-    voci = [
-        ("Quota Tecnica", d['C_Tec']),
-        ("Oneri Amministrativi", d['Oneri']),
-        ("Oneri Gestione Pratica", d['Gestione'])
-    ]
-    
-    fill = False
-    for voce, importo in voci:
-        pdf.set_fill_color(250, 250, 250) if fill else pdf.set_fill_color(255, 255, 255)
-        pdf.set_font("helvetica", "", 10)
-        pdf.cell(140, 9, f"  {voce}", border='B', fill=True)
-        pdf.cell(50, 9, f"{importo:.2f} EUR  ", border='B', fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        fill = not fill
-
-    # --- TOTALI ---
-    pdf.ln(3)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(140, 8, "Totale Imponibile", align='R')
-    pdf.cell(50, 8, f"{d['Imponibile']:.2f} EUR  ", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    
-    pdf.cell(140, 8, f"IVA ({d['IVA_Perc']}%)", align='R')
-    pdf.cell(50, 8, f"{d['IVA_Euro']:.2f} EUR  ", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    
-    pdf.ln(2)
-    pdf.set_font("helvetica", "B", 12)
-    pdf.set_text_color(*BLUE_P)
-    pdf.set_fill_color(230, 240, 250)
-    pdf.cell(140, 12, "  TOTALE DA CORRISPONDERE", fill=True)
-    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR  ", fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # --- PAGAMENTO ---
-    pdf.ln(10)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "", 9)
-    pdf.cell(0, 5, f"Bonifico Bancario IBAN: {d['IBAN']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "I", 9)
-    pdf.cell(0, 5, f"CAUSALE OBBLIGATORIA: Accettazione Preventivo {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Note
-    pdf.set_y(-65)
-    pdf.set_font("helvetica", "", 7)
-    pdf.set_text_color(120, 120, 120)
-    note = [
-        "L'esecuzione della prestazione è subordinata al verificarsi delle seguenti condizioni:",
-        "- conferma della proposta pervenuta entro 30 gg dalla presente richiesta;",
-        "- comunicazione dell'avvenuto completamento di eventuali opere/autorizzazioni a cura del cliente finale.",
-        "Il presente documento deve essere inviato firmato a: assistenza@polisenergia.it"
-    ]
-    for riga in note:
-        pdf.cell(0, 3.5, riga, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Firma
-    pdf.set_y(-35)
-    pdf.set_font("helvetica", "B", 9)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 5, "Firma per Accettazione Cliente", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.line(140, pdf.get_y() + 15, 200, pdf.get_y() + 15)
-
-    return bytes(pdf.output())
-  
-    # --- 5. LOGICA DI NAVIGAZIONE ---
-
-col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-with col_l2:
-    try: 
-        st.image("logo_polis.png", width=250)
-    except: 
-        st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
-    
-    try:
-        SMTP_SERVER = st.secrets["EMAIL_SERVER"]
-        SMTP_PORT = st.secrets["EMAIL_PORT"]
-        SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
-        SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
-        MAIL_CC = st.secrets.get("EMAIL_CC", "")
-    except:
-        st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
-        st.stop()
-
-
-    # --- VISTA CARMINE ---
     st.title("⚡ PolisEnergia - Preventivatore")
 
     if st.button("🧹 PULISCI TUTTO", use_container_width=True):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
-
-# 1. DATI
+  # --- 1. DATI CLIENTE ---
     with st.container():
         c1, c2 = st.columns(2)
         nome = c1.text_input("Ragione Sociale", key="n").upper()
@@ -533,13 +510,10 @@ with col_l2:
         regime = c2.selectbox("Regime IVA", ["10%", "22%", "Esente", "P.A."], key="r")
 
     st.divider()
-
-    # 2. CALCOLO (TUA LOGICA ORIGINALE)
+    # --- 2. CONFIGURAZIONE PRATICA ---
     c3, c4 = st.columns([2, 1])
     pratica = c3.selectbox("Tipo Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento Contatore"], key="prat")
     tipo_ut = c4.radio("Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="ut")
-
-    p_att, p_new, c_dist, passaggio_mt, t_partenza = 0.0, 0.0, 0.0, False, "BT"
 
     if "Potenza" in pratica or "Subentro" in pratica:
         col1, col2 = st.columns(2)
@@ -555,63 +529,39 @@ with col_l2:
         s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
         c_dist = SPOSTAMENTO_10MT if "Entro" in s_dist else st.number_input("Costo Rilievo €", 0.0, key="sdc")
 
-    # --- NUOVA LOGICA LIMITATORE / FRANCHIGIA ---
+    # --- 3. LOGICA DI CALCOLO ---
+    
     limitatore = False
     if tipo_ut == "Altri Usi" and 15 < p_new <= 30:
-        # Il flag appare solo in questa condizione ed è attivo di default
         limitatore = st.checkbox("Abilita Limitatore (Franchigia +10%)", value=True, key="lim_flag")
-    tar = 0
-    # Logica Potenza
-    if p_new > 0:
-        # Caso 1: Potenza <= 30 kW
-        if p_new <= 30:
-            # Applichiamo la franchigia del 10% (es. 20 -> 22) SOLO SE:
-            # - È Domestico 
-            # - OPPURE è Altri Usi e il flag limitatore è attivo
-            if tipo_ut == "Domestico" or (tipo_ut == "Altri Usi" and limitatore):
-                v_new = round(p_new * 1.1, 1)
-                v_att = round(p_att * 1.1, 1) if p_att > 0 else 0.0
-            else:
-                # Altri Usi SENZA limitatore: calcolo netto
-                v_new = p_new
-                v_att = p_att
-            
-            delta = round(v_new - v_att, 1)
-        
-            # Selezione Tariffa TIC
-            if (tipo_ut == "Domestico" and p_new <= 6):
-                tar = TIC_DOMESTICO_LE6
-            elif (t_partenza == "MT" or passaggio_mt):
-                tar = TIC_MT
-            else:
-                tar = TIC_ALTRI_USI_BT
-            
-        # Caso 2: Potenza > 30 kW (Sempre calcolo netto)
-        else:
-            delta = round(p_new - p_att, 1)
-            tar = TIC_MT if (t_partenza == "MT" or passaggio_mt) else TIC_ALTRI_USI_BT
 
-    # Calcoli Economici Finali
+    if p_new > 0:
+        if p_new <= 30 and (tipo_ut == "Domestico" or (tipo_ut == "Altri Usi" and limitatore)):
+            v_new = round(p_new * 1.1, 1)
+            v_att = round(p_att * 1.1, 1) if p_att > 0 else 0.0
+        else:
+            v_new, v_att = p_new, p_att
+        delta = round(v_new - v_att, 1)
+
+        # Selezione Tariffa
+        if "Nuova" in pratica: tar = TIC_ALTRI_USI_BT
+        elif tipo_ut == "Domestico" and p_new <= 6: tar = TIC_DOMESTICO_LE6
+        elif t_partenza == "MT" or passaggio_mt: tar = TIC_MT
+        else: tar = TIC_ALTRI_USI_BT
+
+    # Calcolo Imponibile
     c_tec = c_dist if "Spostamento" in pratica else round(delta * tar, 2)
     if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
-    if "Nuova" in pratica:
-        tar = TIC_ALTRI_USI_BT
-
-    elif (tipo_ut == "Domestico" and p_new <= 6):
-        tar = TIC_DOMESTICO_LE6
-    elif (t_partenza == "MT" or passaggio_mt):
-        tar = TIC_MT
-    else:
-        tar = TIC_ALTRI_USI_BT
-
+    
     c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
     imp = round(c_tec + c_gest + ONERI_ISTRUTTORIA, 2)
     iva_p = 10 if "10" in regime else (22 if "22" in regime or "P.A." in regime else 0)
     iva_e = round(imp * (iva_p/100), 2)
     bollo = 2.0 if (regime == "Esente" and imp > 77.47) else 0.0
     totale = round(imp + bollo, 2) if "P.A." in regime else round(imp + iva_e + bollo, 2)
-
-    # --- 3. ANTEPRIMA ---
+  
+    # --- 4. ANTEPRIMA ---
+    
     st.subheader("📊 Anteprima Calcolo")
     col_t1, col_t2 = st.columns([2, 1])
     with col_t1:
@@ -623,6 +573,93 @@ with col_l2:
         st.metric("TOTALE", f"{totale:.2f} €")
         if "Spostamento" not in pratica:
             st.info(f"Delta: {delta} kW | Tariffa: {tar} €/kW")
+   
+    # --- 5. AZIONI ---
+    
+    if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True):
+        cod = datetime.now().strftime("%y%m%d%H%M%S")
+        st.session_state.current_cod = cod
+        # Passaggio dati alla funzione
+        st.session_state.pdf_bytes = genera_pdf_polis({
+            "Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo, 
+            "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, 
+            "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, "Totale": totale, "IBAN": IBAN_POLIS
+        })
+        st.success(f"Archiviato con codice {cod}")
+
+    if 'pdf_bytes' in st.session_state:
+        pdf_buffer = io.BytesIO(st.session_state.pdf_bytes)
+        st.download_button(label="📥 SCARICA PDF",
+            data=pdf_buffer,
+            file_name=f"{st.session_state.current_cod}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+# --- 6. INVIO EMAIL ---
+        st.divider()
+        st.subheader("📧 Invio Documentazione")
+        
+        # Generazione parametri per la firma (Link e OTP)
+        otp = str(random.randint(100000, 999999))
+        # Assicurati che l'URL sia quello della tua app pubblicata
+        link_firma = f"https://operation-polisenergia.streamlit.app/?codice={st.session_state.current_cod}&otp={otp}"
+        
+        testo_predefinito = (
+            f"Spett.le {nome},\n\n"
+            f"in allegato trasmettiamo il preventivo n. {st.session_state.current_cod} relativo all'impianto sito in {indirizzo}.\n\n"
+            f"Puoi procedere alla firma elettronica cliccando sul seguente link:\n{link_firma}\n"
+            f"Codice OTP di accesso: {otp}\n\n"
+            "Restiamo a disposizione per ogni chiarimento.\n"
+            "Cordiali saluti,\nPolisEnergia srl"
+        )
+        
+        corpo_mail = st.text_area("Modifica il testo dell'email:", value=testo_predefinito, height=200)
+        
+        if st.button("🚀 INVIA EMAIL AL CLIENTE", use_container_width=True):
+            if not email_dest:
+                st.error("Inserisci l'email del cliente prima di inviare!")
+            else:
+                try:
+                    with st.spinner("Invio in corso..."):
+                        # Configurazione Messaggio
+                        msg = MIMEMultipart()
+                        msg['From'] = SENDER_EMAIL
+                        msg['To'] = email_dest
+                        msg['Cc'] = MAIL_CC
+                        msg['Subject'] = f"Preventivo PolisEnergia n. {st.session_state.current_cod} - {nome}"
+                        
+                        msg.attach(MIMEText(corpo_mail, 'plain'))
+                        
+                        # Allegato PDF
+                        part = MIMEApplication(st.session_state.pdf_bytes, Name=f"Preventivo_{st.session_state.current_cod}.pdf")
+                        part['Content-Disposition'] = f'attachment; filename="Preventivo_{st.session_state.current_cod}.pdf"'
+                        msg.attach(part)
+                        
+                        # Invio tramite SMTP
+                        context = ssl.create_default_context()
+                        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+                            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                            # Creiamo la lista dei destinatari inclusa la CC
+                            destinatari = [email_dest] + ([MAIL_CC] if MAIL_CC else [])
+                            server.send_message(msg)
+                            
+                        st.success(f"✅ Email inviata con successo a {email_dest}!")
+                except Exception as e:
+                    st.error(f"Errore durante l'invio: {e}")
+
+    # --- FOOTER (Opzionale) ---
+    st.sidebar.divider()
+    st.sidebar.caption(f"PolisEnergia Internal Tools v1.1 © {datetime.now().year}")
+    # Logo o Nome Azienda
+
+
+
+    # --- VISTA CARMINE ---
+    st.title("⚡ PolisEnergia - Preventivatore")
+
+    if st.button("🧹 PULISCI TUTTO", use_container_width=True):
+        for key in list(st.session_state.keys()): del st.session_state[key]
+        st.rerun()
 
 
     # --- 4. AZIONI ---
