@@ -636,17 +636,6 @@ def genera_pdf_test(d):
         if "Spostamento" not in pratica:
             st.info(f"Delta: {delta} kW | Tariffa: {tar} €/kW")
 
-    # --- AREA DI TEST GRAFICO ---
-st.divider()
-st.subheader("🧪 Test Nuova Grafica PDF")
-
-    
-    st.download_button(
-        label="📥 Scarica e controlla il nuovo PDF",
-        data=pdf_test,
-        file_name="test_grafica_polis.pdf",
-        mime="application/pdf"
-    )
 
     # --- 4. AZIONI ---
     if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True):
