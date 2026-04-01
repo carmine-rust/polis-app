@@ -484,9 +484,9 @@ if scelta == "Autoletture":
             use_container_width=True,
             key="zip_download_btn"
         )
-        except Exception as e:
-        # QUESTO È IL BLOCCO CHE MANCAVA E CAUSAVA L'ERRORE
-            st.error(f"Si è verificato un errore durante la generazione: {e}")
+
+    except Exception as e: # <--- ORA È ALLINEATO SOTTO IL TRY
+        st.error(f"Si è verificato un errore durante la generazione: {e}")
            
 elif scelta == "Preventivo di Connessione":
     # --- 1. COSTANTI E CONFIGURAZIONE INIZIALE ---
