@@ -488,6 +488,20 @@ elif scelta == "Preventivo di Connessione":
         pdf.rect(0, 0, 210, 45, 'F')
     
     # Logo o Nome Azienda
+def genera_pdf_test(d):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- COLORI BRAND ---
+    BLUE_P = (0, 51, 102)
+    GRAY_LIGHT = (245, 245, 245)
+    GRAY_TEXT = (60, 60, 60)
+
+    # --- HEADER BLU ---
+    pdf.set_fill_color(*BLUE_P)
+    pdf.rect(0, 0, 210, 45, 'F')
+    
+    # Logo o Nome Azienda
     try:
         pdf.image("logo_polis.png", 10, 12, 35)
     except:
@@ -521,19 +535,17 @@ elif scelta == "Preventivo di Connessione":
     pdf.set_text_color(*GRAY_TEXT)
     pdf.cell(0, 7, f"  POD: {d['POD']} | Indirizzo: {d['Indirizzo']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # --- TABELLA PRESTAZIONI (Stile Moderno) ---
+    # --- TABELLA PRESTAZIONI ---
     pdf.ln(10)
     pdf.set_draw_color(220, 220, 220)
     pdf.set_line_width(0.2)
     
-    # Header Tabella
     pdf.set_font("helvetica", "B", 10)
     pdf.set_fill_color(*BLUE_P)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(140, 10, "  DESCRIZIONE PRESTAZIONE", border='B', fill=True)
     pdf.cell(50, 10, "IMPORTO  ", border='B', fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # Righe Tabella
     pdf.set_text_color(*GRAY_TEXT)
     voci = [
         ("Quota Tecnica", d['C_Tec']),
@@ -558,7 +570,6 @@ elif scelta == "Preventivo di Connessione":
     pdf.cell(140, 8, f"IVA ({d['IVA_Perc']}%)", align='R')
     pdf.cell(50, 8, f"{d['IVA_Euro']:.2f} EUR  ", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    # Box Totale Finale
     pdf.ln(2)
     pdf.set_font("helvetica", "B", 12)
     pdf.set_text_color(*BLUE_P)
@@ -566,7 +577,7 @@ elif scelta == "Preventivo di Connessione":
     pdf.cell(140, 12, "  TOTALE DA CORRISPONDERE", fill=True)
     pdf.cell(50, 12, f"{d['Totale']:.2f} EUR  ", fill=True, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # --- PAGAMENTO E NOTE ---
+    # --- PAGAMENTO ---
     pdf.ln(10)
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("helvetica", "B", 10)
@@ -576,7 +587,7 @@ elif scelta == "Preventivo di Connessione":
     pdf.set_font("helvetica", "I", 9)
     pdf.cell(0, 5, f"CAUSALE OBBLIGATORIA: Accettazione Preventivo {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # Note Legali (Piccolissime in fondo)
+    # Note
     pdf.set_y(-65)
     pdf.set_font("helvetica", "", 7)
     pdf.set_text_color(120, 120, 120)
@@ -589,7 +600,7 @@ elif scelta == "Preventivo di Connessione":
     for riga in note:
         pdf.cell(0, 3.5, riga, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # --- FIRMA ---
+    # Firma
     pdf.set_y(-35)
     pdf.set_font("helvetica", "B", 9)
     pdf.set_text_color(0, 0, 0)
@@ -597,6 +608,7 @@ elif scelta == "Preventivo di Connessione":
     pdf.line(140, pdf.get_y() + 15, 200, pdf.get_y() + 15)
 
     return pdf.output()
+  
     # --- 5. LOGICA DI NAVIGAZIONE ---
 
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
