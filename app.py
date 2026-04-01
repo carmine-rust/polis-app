@@ -363,17 +363,15 @@ scelta = st.sidebar.radio("Cosa vuoi fare?",
 if scelta == "Autoletture":
     st.header("📊 Generatore Flussi Autoletture")
     file_arera_path = "arera.csv"
+    
     if not os.path.exists(file_arera_path):
-        st.error("❌ File 'arera.csv' non trovato su GitHub. Caricalo nel repository per continuare.")
+        st.error("❌ File 'arera.csv' non trovato. Caricalo nel repository per continuare.")
         st.stop()
     
-    # 2. Input Dati
-    piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="05050950657", help="Inserisci la tua Partita IVA")
+    piva_mittente = st.text_input("P.IVA Venditore (Mittente)", value="05050950657")
 
     st.divider()
     st.subheader("📁 Caricamento File Privati")
-    st.caption("I dati caricati qui non vengono salvati sul server e spariscono alla chiusura della pagina.")
-
     col1, col2 = st.columns(2)
     with col1:
         file_tech = st.file_uploader("1. Carica Anagrafica Tecnica (Excel)", type=["xlsx", "xls"])
@@ -381,9 +379,9 @@ if scelta == "Autoletture":
         file_letture = st.file_uploader("2. Carica File Autoletture (CSV)", type="csv")
 
     if file_tech and file_letture:
-        if st.button("🚀 GENERA FILE XML", use_container_width=True):
+        if st.button("🚀 GENERA PACCHETTO XML (.ZIP)", use_container_width=True):
             try:
-                # Lettura ARERA
+                # 1. LETTURA DATI
                 df_arera = pd.read_csv(file_arera_path, encoding='latin-1', sep=';', on_bad_lines='skip', dtype=str)
                 df_arera.columns = [c.strip().upper() for c in df_arera.columns]
                 
@@ -393,14 +391,12 @@ if scelta == "Autoletture":
                     piva_d = "".join(filter(str.isdigit, str(r['PARTITA IVA'])))[:11].zfill(11)
                     mappa_distr[pref] = {'piva': piva_d, 'nome': str(r['RAGIONE SOCIALE']).strip()}
 
-                # Lettura Anagrafica Tecnica
                 df_tech = pd.read_excel(file_tech, dtype=str)
                 df_tech.columns = [c.strip().upper() for c in df_tech.columns]
                 mappa_matr_pdr = pd.Series(df_tech['MATR_MIS'].values, index=df_tech.COD_PDR.str.strip()).to_dict()
                 c_matr_corr = next((c for c in df_tech.columns if 'CORR' in c), None)
                 mappa_matr_corr = pd.Series(df_tech[c_matr_corr].values, index=df_tech.COD_PDR.str.strip()).to_dict() if c_matr_corr else {}
 
-                # Lettura Autoletture
                 df_let = pd.read_csv(file_letture, sep=None, engine='python', encoding='utf-8-sig', dtype=str)
                 df_let.columns = [c.strip().upper() for c in df_let.columns]
                 
@@ -409,7 +405,7 @@ if scelta == "Autoletture":
                 col_lett = next(c for c in df_let.columns if 'LETTURA' in c and 'CORRE' not in c)
                 col_corr = next((c for c in df_let.columns if 'CORRETTORE' in c or 'CONVERT' in c), None)
 
-                # Raggruppamento
+                # 2. RAGGRUPPAMENTO PER DISTRIBUTORE
                 gruppi = defaultdict(list)
                 for _, riga in df_let.iterrows():
                     pdr = str(riga[col_pdr]).strip().split('.')[0].zfill(14)
@@ -427,66 +423,46 @@ if scelta == "Autoletture":
                                 'm_corr': str(mappa_matr_corr.get(pdr, "")).split('.')[0] if pdr in mappa_matr_corr else None
                             })
 
-                # Risultati e Download
-                st.success(f"Elaborazione completata! Trovati {len(gruppi)} distributori.")
-                st.divider()
+                # 3. CREAZIONE ZIP IN MEMORIA
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                    for piva_d, lista in gruppi.items():
+                        # Creazione XML per questo distributore
+                        root = ET.Element("Prestazione", cod_servizio="TAL", cod_flusso="0050")
+                        id_req = ET.SubElement(root, "IdentificativiRichiesta")
+                        ET.SubElement(id_req, "piva_utente").text = piva_mittente
+                        ET.SubElement(id_req, "piva_distr").text = piva_d
+                        
+                        for item in lista:
+                            d = ET.SubElement(root, "DatiPdR")
+                            ET.SubElement(d, "cod_pdr").text = item['pdr']
+                            ET.SubElement(d, "matr_mis").text = item['m_pdr']
+                            ET.SubElement(d, "data_com_autolet_cf").text = item['data']
+                            ET.SubElement(d, "let_tot_prel").text = item['lett']
+                            if item['corr']:
+                                ET.SubElement(d, "let_tot_conv").text = item['corr']
+                                if item['m_corr'] and item['m_corr'] not in ["nan", "None", ""]:
+                                    ET.SubElement(d, "matr_conv").text = item['m_corr']
 
-                for piva_d, lista in gruppi.items():
-                    # Creazione XML
-                    root = ET.Element("Prestazione", cod_servizio="TAL", cod_flusso="0050")
-                    id_req = ET.SubElement(root, "IdentificativiRichiesta")
-                    ET.SubElement(id_req, "piva_utente").text = piva_mittente
-                    ET.SubElement(id_req, "piva_distr").text = piva_d
-                    
-                    for item in lista:
-                        d = ET.SubElement(root, "DatiPdR")
-                        ET.SubElement(d, "cod_pdr").text = item['pdr']
-                        ET.SubElement(d, "matr_mis").text = item['m_pdr']
-                        ET.SubElement(d, "data_com_autolet_cf").text = item['data']
-                        ET.SubElement(d, "let_tot_prel").text = item['lett']
-                        if item['corr']:
-                            ET.SubElement(d, "let_tot_conv").text = item['corr']
-                            if item['m_corr'] and item['m_corr'] not in ["nan", "None", ""]:
-                                ET.SubElement(d, "matr_conv").text = item['m_corr']
+                        # Trasformazione in stringa e aggiunta allo ZIP
+                        xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+                        clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
+                        nome_file = f"TAL_0050_{piva_d}_{clean_name}.xml"
+                        zip_file.writestr(nome_file, xml_str)
 
-                    # Preparazione file per scaricamento
-                    xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-                    clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
-                    
-                    # --- LOGICA ZIP ---
-                    # 1. Crea un buffer in memoria per lo ZIP
-    try:
-        # 1. Prepariamo il "contenitore" per lo ZIP
-        zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            # --- IL TUO CICLO DI GENERAZIONE XML ---
-            for distributore in lista_distributori:
-                # ... (qui crei il tuo XML 'root') ...
-                
-                xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-                clean_name = re.sub(r'\W+', '', distributore['nome'])[:15]
-                nome_file = f"TAL_0050_{distributore['piva']}_{clean_name}.xml"
-                
-                # Invece di scaricare, aggiungiamo allo ZIP
-                zip_file.writestr(nome_file, xml_str)
+                # 4. DOWNLOAD FINALE
+                zip_buffer.seek(0)
+                st.success(f"✅ Elaborazione completata! Creati file per {len(gruppi)} distributori.")
+                st.download_button(
+                    label="📥 SCARICA PACCHETTO ZIP",
+                    data=zip_buffer,
+                    file_name=f"Autoletture_{datetime.now().strftime('%d_%m_%H%M')}.zip",
+                    mime="application/zip",
+                    use_container_width=True
+                )
 
-        # 2. Prepariamo il buffer per il download
-        zip_buffer.seek(0)
-        
-        # 3. Mostriamo il tasto di download unico
-        st.success("✅ Pacchetto XML generato con successo!")
-        st.download_button(
-            label="📥 SCARICA TUTTI GLI XML (.ZIP)",
-            data=zip_buffer,
-            file_name=f"Autoletture_{datetime.now().strftime('%d_%m_%Y')}.zip",
-            mime="application/zip",
-            use_container_width=True,
-            key="zip_download_btn"
-        )
-
-    except Exception as e: # <--- ORA È ALLINEATO SOTTO IL TRY
-        st.error(f"Si è verificato un errore durante la generazione: {e}")
+            except Exception as e:
+                st.error(f"Si è verificato un errore: {e}")
            
 elif scelta == "Preventivo di Connessione":
     # --- 1. COSTANTI E CONFIGURAZIONE INIZIALE ---
