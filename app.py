@@ -8,6 +8,7 @@ import re
 import os
 import smtplib
 import ssl
+import zipfile
 from sqlalchemy import text
 from collections import defaultdict
 from streamlit_gsheets import GSheetsConnection
@@ -452,13 +453,38 @@ if scelta == "Autoletture":
                     xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
                     clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
                     
-                    st.download_button(
-                        label=f"⬇️ Scarica XML: {lista[0]['distr_nome']} ({piva_d})",
-                        data=xml_str,
-                        file_name=f"TAL_0050_{piva_d}_{clean_name}.xml",
-                        mime="application/xml",
-                        key=piva_d # Chiave univoca per streamlit
-                    )
+                    # --- LOGICA ZIP ---
+                    # 1. Crea un buffer in memoria per lo ZIP
+zip_buffer = io.BytesIO()
+
+with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zip_file:
+    # --- Qui inizia il tuo ciclo attuale (es. for distributore in ...) ---
+    # Immaginiamo che 'root' sia l'elemento XML che hai appena generato nel tuo ciclo:
+    
+    xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+    
+    # Pulizia nome file
+    clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
+    nome_file_xml = f"TAL_0050_{piva_d}_{clean_name}.xml"
+    
+    # 2. Invece di st.download_button, aggiungi il file allo ZIP
+    zip_file.writestr(nome_file_xml, xml_str)
+    # --- Fine del tuo ciclo ---
+
+# 3. Fuori dal ciclo, prepara il buffer e mostra l'UNICO pulsante
+zip_buffer.seek(0)
+
+st.divider()
+st.subheader("📦 Pacchetto Autoletture Pronto")
+
+st.download_button(
+    label="🚀 SCARICA TUTTI GLI XML (ZIP)",
+    data=zip_buffer,
+    file_name=f"Autoletture_Polis_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
+    mime="application/zip",
+    use_container_width=True,
+    key="download_zip_final"
+)
 
             except Exception as e:
                 st.error(f"Errore durante l'elaborazione: {e}")
