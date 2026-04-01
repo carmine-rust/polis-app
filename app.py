@@ -588,58 +588,64 @@ elif scelta == "Preventivo di Connessione":
         if "Spostamento" not in pratica:
             st.info(f"Delta: {delta} kW | Tariffa: {tar} €/kW")
    
-# --- 6. INVIO EMAIL ---
-        st.divider()
-        st.subheader("📧 Invio Documentazione")
-        
-        # Generazione parametri per la firma (Link e OTP)
-        otp = str(random.randint(100000, 999999))
-        # Assicurati che l'URL sia quello della tua app pubblicata
-        link_firma = f"https://operation-polisenergia.streamlit.app/?codice={st.session_state.current_cod}&otp={otp}"
-        
-        testo_predefinito = (
-            f"Spett.le {nome},\n\n"
-            f"in allegato trasmettiamo il preventivo n. {st.session_state.current_cod} relativo all'impianto sito in {indirizzo}.\n\n"
-            f"Puoi procedere alla firma elettronica cliccando sul seguente link:\n{link_firma}\n"
-            f"Codice OTP di accesso: {otp}\n\n"
-            "Restiamo a disposizione per ogni chiarimento.\n"
-            "Cordiali saluti,\nPolisEnergia srl"
-        )
-        
-        corpo_mail = st.text_area("Modifica il testo dell'email:", value=testo_predefinito, height=200)
-        
-        if st.button("🚀 INVIA EMAIL AL CLIENTE", use_container_width=True):
-            if not email_dest:
-                st.error("Inserisci l'email del cliente prima di inviare!")
-            else:
-                try:
-                    with st.spinner("Invio in corso..."):
-                        # Configurazione Messaggio
-                        msg = MIMEMultipart()
-                        msg['From'] = SENDER_EMAIL
-                        msg['To'] = email_dest
-                        msg['Cc'] = MAIL_CC
-                        msg['Subject'] = f"Preventivo PolisEnergia n. {st.session_state.current_cod} - {nome}"
+# --- 6. INVIO EMAIL (PROTETTO DA CRASH) ---
+# Eseguiamo questo blocco SOLO se il PDF è stato generato e il codice esiste
+if 'current_cod' in st.session_state and 'pdf_bytes' in st.session_state:
+    st.divider()
+    st.subheader("📧 Invio Documentazione")
+    
+    # Generazione parametri per la firma (Link e OTP)
+    # Usiamo un seed basato sul codice per mantenere l'OTP stabile durante i ricarichi della pagina
+    if 'current_otp' not in st.session_state:
+        st.session_state.current_otp = str(random.randint(100000, 999999))
+    
+    otp = st.session_state.current_otp
+    link_firma = f"https://operation-polisenergia.streamlit.app/?codice={st.session_state.current_cod}&otp={otp}"
+    
+    testo_predefinito = (
+        f"Spett.le {nome},\n\n"
+        f"in allegato trasmettiamo il preventivo n. {st.session_state.current_cod} relativo all'impianto sito in {indirizzo}.\n\n"
+        f"Puoi procedere alla firma elettronica cliccando sul seguente link:\n{link_firma}\n"
+        f"Codice OTP di accesso: {otp}\n\n"
+        "Restiamo a disposizione per ogni chiarimento.\n"
+        "Cordiali saluti,\nPolisEnergia srl"
+    )
+    
+    corpo_mail = st.text_area("Modifica il testo dell'email:", value=testo_predefinito, height=200)
+    
+    # Aggiungiamo una key univoca al bottone per evitare altri errori di DuplicateID
+    if st.button("🚀 INVIA EMAIL AL CLIENTE", use_container_width=True, key="btn_invia_email_final"):
+        if not email_dest:
+            st.error("Inserisci l'email del cliente prima di inviare!")
+        else:
+            try:
+                with st.spinner("Invio in corso..."):
+                    # Configurazione Messaggio
+                    msg = MIMEMultipart()
+                    msg['From'] = SENDER_EMAIL
+                    msg['To'] = email_dest
+                    msg['Cc'] = MAIL_CC
+                    msg['Subject'] = f"Preventivo PolisEnergia n. {st.session_state.current_cod} - {nome}"
+                    
+                    msg.attach(MIMEText(corpo_mail, 'plain'))
+                    
+                    # Allegato PDF
+                    part = MIMEApplication(st.session_state.pdf_bytes, Name=f"Preventivo_{st.session_state.current_cod}.pdf")
+                    part['Content-Disposition'] = f'attachment; filename="Preventivo_{st.session_state.current_cod}.pdf"'
+                    msg.attach(part)
+                    
+                    # Invio tramite SMTP
+                    context = ssl.create_default_context()
+                    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+                        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                        server.send_message(msg)
                         
-                        msg.attach(MIMEText(corpo_mail, 'plain'))
-                        
-                        # Allegato PDF
-                        part = MIMEApplication(st.session_state.pdf_bytes, Name=f"Preventivo_{st.session_state.current_cod}.pdf")
-                        part['Content-Disposition'] = f'attachment; filename="Preventivo_{st.session_state.current_cod}.pdf"'
-                        msg.attach(part)
-                        
-                        # Invio tramite SMTP
-                        context = ssl.create_default_context()
-                        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
-                            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                            # Creiamo la lista dei destinatari inclusa la CC
-                            destinatari = [email_dest] + ([MAIL_CC] if MAIL_CC else [])
-                            server.send_message(msg)
-                            
-                        st.success(f"✅ Email inviata con successo a {email_dest}!")
-                except Exception as e:
-                    st.error(f"Errore durante l'invio: {e}")
-
+                    st.success(f"✅ Email inviata con successo a {email_dest}!")
+            except Exception as e:
+                st.error(f"Errore durante l'invio: {e}")
+else:
+    # Se il PDF non è ancora stato generato, mostriamo un piccolo avviso amichevole
+    st.info("ℹ️ Completa la generazione del PDF per abilitare l'invio della mail.")
     # --- FOOTER (Opzionale) ---
     st.sidebar.divider()
     st.sidebar.caption(f"PolisEnergia Internal Tools v1.1 © {datetime.now().year}")
