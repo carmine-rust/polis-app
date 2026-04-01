@@ -546,8 +546,25 @@ elif scelta == "Preventivo di Connessione":
         elif t_partenza == "MT" or passaggio_mt: tar = TIC_MT
         else: tar = TIC_ALTRI_USI_BT
 
-    # Calcolo Imponibile
-    c_tec = c_dist if "Spostamento" in pratica else round(delta * tar, 2)
+    # --- CALCOLO IMPONIBILE CORRETTO ---
+    if "Spostamento" in pratica:
+        # Per lo spostamento conta solo la quota distanza/rilievo
+        c_tec = c_dist
+    elif "Nuova" in pratica:
+        # Per la nuova connessione: (kW * tariffa) + Quota Distanza
+        c_tec = round((delta * tar) + c_dist, 2)
+    else:
+        # Per Aumenti e Subentri: solo (kW * tariffa)
+        c_tec = round(delta * tar, 2)
+
+    # Aggiunta eventuale passaggio MT (se selezionato)
+    if passaggio_mt: 
+        c_tec += COSTO_PASSAGGIO_MT
+    
+    # Da qui in poi il resto del calcolo (Gestione, Istruttoria, IVA)
+    c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
+    imp = round(c_tec + c_gest + ONERI_ISTRUTTORIA, 2)
+    # ... il resto rimane uguale ...
     if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
     
     c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
