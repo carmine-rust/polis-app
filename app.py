@@ -649,11 +649,6 @@ elif scelta == "Preventivo di Connessione":
     st.sidebar.caption(f"PolisEnergia Internal Tools v1.1 © {datetime.now().year}")
     # Logo o Nome Azienda
 
-
-
-    # --- VISTA CARMINE ---
-    st.title("⚡ PolisEnergia - Preventivatore")
-
     # Modifica la riga aggiungendo key="pulisci_prev"
     if st.button("🧹 PULISCI TUTTO", use_container_width=True, key="pulisci_prev"):
         for key in list(st.session_state.keys()): 
