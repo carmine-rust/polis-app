@@ -498,22 +498,22 @@ def genera_pdf_polis(d):
   
     # --- 5. LOGICA DI NAVIGAZIONE ---
 
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-        try: 
-            st.image("logo_polis.png", width=250)
-        except: 
-            st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
+col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+with col_l2:
+    try: 
+        st.image("logo_polis.png", width=250)
+    except: 
+        st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
     
-        try:
-            SMTP_SERVER = st.secrets["EMAIL_SERVER"]
-            SMTP_PORT = st.secrets["EMAIL_PORT"]
-            SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
-            SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
-            MAIL_CC = st.secrets.get("EMAIL_CC", "")
-        except:
-            st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
-            st.stop()
+    try:
+        SMTP_SERVER = st.secrets["EMAIL_SERVER"]
+        SMTP_PORT = st.secrets["EMAIL_PORT"]
+        SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
+        SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+        MAIL_CC = st.secrets.get("EMAIL_CC", "")
+     except:
+        st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
+        st.stop()
 
 
     # --- VISTA CARMINE ---
