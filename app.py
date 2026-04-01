@@ -511,7 +511,7 @@ with col_l2:
         SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
         SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
         MAIL_CC = st.secrets.get("EMAIL_CC", "")
-     except:
+    except:
         st.error("Configura i Secrets EMAIL (EMAIL_SERVER, etc.) su Streamlit Cloud.")
         st.stop()
 
