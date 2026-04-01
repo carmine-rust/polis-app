@@ -657,10 +657,11 @@ elif scelta == "Preventivo di Connessione":
     # --- VISTA CARMINE ---
     st.title("⚡ PolisEnergia - Preventivatore")
 
-    if st.button("🧹 PULISCI TUTTO", use_container_width=True):
-        for key in list(st.session_state.keys()): del st.session_state[key]
+    # Modifica la riga aggiungendo key="pulisci_prev"
+    if st.button("🧹 PULISCI TUTTO", use_container_width=True, key="pulisci_prev"):
+        for key in list(st.session_state.keys()): 
+            del st.session_state[key]
         st.rerun()
-
 
     # --- 4. AZIONI ---
     if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True):
