@@ -455,40 +455,40 @@ if scelta == "Autoletture":
                     
                     # --- LOGICA ZIP ---
                     # 1. Crea un buffer in memoria per lo ZIP
-zip_buffer = io.BytesIO()
+try:
+        # 1. Prepariamo il "contenitore" per lo ZIP
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            # --- IL TUO CICLO DI GENERAZIONE XML ---
+            for distributore in lista_distributori:
+                # ... (qui crei il tuo XML 'root') ...
+                
+                xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+                clean_name = re.sub(r'\W+', '', distributore['nome'])[:15]
+                nome_file = f"TAL_0050_{distributore['piva']}_{clean_name}.xml"
+                
+                # Invece di scaricare, aggiungiamo allo ZIP
+                zip_file.writestr(nome_file, xml_str)
 
-with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zip_file:
-    # --- Qui inizia il tuo ciclo attuale (es. for distributore in ...) ---
-    # Immaginiamo che 'root' sia l'elemento XML che hai appena generato nel tuo ciclo:
-    
-    xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-    
-    # Pulizia nome file
-    clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
-    nome_file_xml = f"TAL_0050_{piva_d}_{clean_name}.xml"
-    
-    # 2. Invece di st.download_button, aggiungi il file allo ZIP
-    zip_file.writestr(nome_file_xml, xml_str)
-    # --- Fine del tuo ciclo ---
+        # 2. Prepariamo il buffer per il download
+        zip_buffer.seek(0)
+        
+        # 3. Mostriamo il tasto di download unico
+        st.success("✅ Pacchetto XML generato con successo!")
+        st.download_button(
+            label="📥 SCARICA TUTTI GLI XML (.ZIP)",
+            data=zip_buffer,
+            file_name=f"Autoletture_{datetime.now().strftime('%d_%m_%Y')}.zip",
+            mime="application/zip",
+            use_container_width=True,
+            key="zip_download_btn"
+        )
 
-# 3. Fuori dal ciclo, prepara il buffer e mostra l'UNICO pulsante
-zip_buffer.seek(0)
-
-st.divider()
-st.subheader("📦 Pacchetto Autoletture Pronto")
-
-st.download_button(
-    label="🚀 SCARICA TUTTI GLI XML (ZIP)",
-    data=zip_buffer,
-    file_name=f"Autoletture_Polis_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
-    mime="application/zip",
-    use_container_width=True,
-    key="download_zip_final"
-)
-
-            except Exception as e:
-                st.error(f"Errore durante l'elaborazione: {e}")
-
+    except Exception as e:
+        # QUESTO È IL BLOCCO CHE MANCAVA E CAUSAVA L'ERRORE
+        st.error(f"Si è verificato un errore durante la generazione: {e}")
+           
 elif scelta == "Preventivo di Connessione":
     # --- 1. COSTANTI E CONFIGURAZIONE INIZIALE ---
     TIC_DOMESTICO_LE6 = 62.30  
