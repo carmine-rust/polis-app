@@ -455,7 +455,7 @@ if scelta == "Autoletture":
                     
                     # --- LOGICA ZIP ---
                     # 1. Crea un buffer in memoria per lo ZIP
-try:
+    try:
         # 1. Prepariamo il "contenitore" per lo ZIP
         zip_buffer = io.BytesIO()
         
