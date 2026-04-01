@@ -538,7 +538,7 @@ elif scelta == "Preventivo di Connessione":
     if tipo_ut == "Altri Usi" and 15 < p_new <= 30:
         # Il flag appare solo in questa condizione ed è attivo di default
         limitatore = st.checkbox("Abilita Limitatore (Franchigia +10%)", value=True, key="lim_flag")
-
+    tar = 0
     # Logica Potenza
     if p_new > 0:
         # Caso 1: Potenza <= 30 kW
