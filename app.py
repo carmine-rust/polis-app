@@ -475,17 +475,17 @@ elif scelta == "Preventivo di Connessione":
         # rimosso dest='S', fpdf2 gestisce l'output come byte stream
         return pdf.output()
     def genera_pdf_test(d):
-    pdf = FPDF()
-    pdf.add_page()
+        pdf = FPDF()
+        pdf.add_page()
     
     # --- COLORI BRAND ---
-    BLUE_P = (0, 51, 102)
-    GRAY_LIGHT = (245, 245, 245)
-    GRAY_TEXT = (60, 60, 60)
+        BLUE_P = (0, 51, 102)
+        GRAY_LIGHT = (245, 245, 245)
+        GRAY_TEXT = (60, 60, 60)
 
     # --- HEADER BLU ---
-    pdf.set_fill_color(*BLUE_P)
-    pdf.rect(0, 0, 210, 45, 'F')
+        pdf.set_fill_color(*BLUE_P)
+        pdf.rect(0, 0, 210, 45, 'F')
     
     # Logo o Nome Azienda
     try:
