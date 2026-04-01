@@ -377,107 +377,6 @@ elif scelta == "Preventivo di Connessione":
         pdf = FPDF()
         pdf.add_page()
     
-    # --- HEADER BLU ---
-        pdf.set_fill_color(0, 51, 102) # Blu scuro Polis
-        pdf.rect(0, 0, 210, 40, 'F')
-    
-    # Logo (se presente) o Testo
-        try:
-            pdf.image("logo_polis.png", 10, 8, 33)
-        except:
-            pdf.set_xy(10, 12)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font("helvetica", "B", 18)
-            pdf.cell(0, 10, "PolisEnergia srl")
-    
-        # Dati Aziendali in Bianco
-        pdf.set_xy(120, 10)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font("helvetica", "", 8)
-        pdf.multi_cell(80, 4, "Via Terre delle Risaie, 4 - 84131 Salerno (SA)\nP.IVA 05050950657\nassistenza@polisenergia.it - www.polisenergia.it", align='R')
-    
-        # --- TITOLO E DATA ---
-        pdf.set_xy(10, 50)
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("helvetica", "B", 14)
-        # Sostituito ln=1 con new_x/new_y
-        pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.set_font("helvetica", "", 10)
-        pdf.cell(0, 6, f"Data emissione: {datetime.now().strftime('%d/%m/%Y')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    
-        # --- DATI CLIENTE ---
-        pdf.ln(5)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.set_font("helvetica", "B", 10)
-        pdf.cell(0, 8, f" SPETT.LE CLIENTE: {d['Cliente']}", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L', fill=True)
-        pdf.set_font("helvetica", "", 10)
-        pdf.cell(0, 7, f" POD: {d['POD']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.cell(0, 7, f" Indirizzo: {d['Indirizzo']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    
-        # --- TABELLA PRESTAZIONI ---
-        pdf.ln(10)
-        pdf.set_font("helvetica", "B", 10)
-        pdf.set_fill_color(0, 51, 102)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(140, 10, " DESCRIZIONE PRESTAZIONE", border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
-        pdf.cell(50, 10, " IMPORTO", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C', fill=True)
-    
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("helvetica", "", 10)
-    
-        # Righe Tabella
-        voci = [
-            ("Quota Tecnica", f"{d['C_Tec']:.2f}"),
-            ("Oneri Amministrativi", f"{d['Oneri']:.2f}"),
-            ("Oneri Gestione Pratica", f"{d['Gestione']:.2f}")
-        ]
-    
-        for voce, importo in voci:
-            pdf.cell(140, 8, f" {voce}", border=1)
-            pdf.cell(50, 8, f"{importo} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
-        
-        # Totali
-        pdf.ln(2)
-        pdf.set_font("helvetica", "B", 10)
-        pdf.cell(140, 10, " TOTALE IMPONIBILE", border=1)
-        pdf.cell(50, 10, f"{d['Imponibile']:.2f} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
-        pdf.cell(140, 10, f" IVA APPLICATA ({d['IVA_Perc']}%)", border=1)
-        pdf.cell(50, 10, f"{d['IVA_Euro']:.2f} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
-    
-        pdf.set_fill_color(220, 230, 240)
-        pdf.cell(140, 12, " TOTALE DA CORRISPONDERE", border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
-        pdf.cell(50, 12, f"{d['Totale']:.2f} EUR ", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
-    
-        # --- PAGAMENTO ---
-        pdf.ln(15)
-        pdf.set_font("helvetica", "B", 10)
-        pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.set_font("helvetica", "", 10)
-        pdf.cell(0, 6, f"Bonifico Bancario IBAN: {d['IBAN']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.set_font("helvetica", "B", 10)
-        pdf.cell(0, 6, f"CAUSALE: Accettazione Preventivo {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-        # --- NOTE ---
-        pdf.ln(15)
-        pdf.set_font("helvetica", "", 6)
-        pdf.cell(0,4, " L'esecuzione della prestazione è pertanto subordinata al verificarsi delle seguenti condizioni:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.cell(0,4, "- conferma della proposta perventua entro 30 gg dalla presente richiesta;", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.cell(0,4, "- in caso di consegna della specifica tecnica, comunicazione dell'avvenuto completamento delle eventuali opere e/o concessioni,autorizzazioni, servitù a cura del cliente finale." , new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.cell(0,4, "Tale preventivo, opportunamente sottoscritto, dovrà essere inviato tramite mail all'indirizzo assistenza@polisenergia.it", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    
-        # --- FIRME ---
-        pdf.set_y(-50)
-        pdf.set_font("helvetica", "", 8)
-        pdf.cell(0, 5, "Firma per Accettazione Cliente", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
-        pdf.ln(10)
-        pdf.line(140, pdf.get_y()+5, 200, pdf.get_y()+5) # Linea Cliente
-    
-        # rimosso dest='S', fpdf2 gestisce l'output come byte stream
-        return pdf.output()
-    def genera_pdf_test(d):
-        pdf = FPDF()
-        pdf.add_page()
-    
     # --- COLORI BRAND ---
         BLUE_P = (0, 51, 102)
         GRAY_LIGHT = (245, 245, 245)
@@ -741,24 +640,6 @@ def genera_pdf_test(d):
 st.divider()
 st.subheader("🧪 Test Nuova Grafica PDF")
 
-if st.button("Genera Anteprima Test"):
-    # Creiamo un set di dati finti per il test
-    dati_test = {
-        'Codice': 'TEST-2026-001',
-        'Cliente': 'Mario Rossi S.r.l.',
-        'POD': 'IT001E12345678',
-        'Indirizzo': 'Via Roma 123, 00100 Roma (RM)',
-        'C_Tec': 150.00,
-        'Oneri': 25.51,
-        'Gestione': 45.00,
-        'Imponibile': 220.51,
-        'IVA_Perc': 22,
-        'IVA_Euro': 48.51,
-        'Totale': 269.02,
-        'IBAN': 'IT00X01234567890123456789',
-    }
-    
-    pdf_test = genera_pdf_test(dati_test)
     
     st.download_button(
         label="📥 Scarica e controlla il nuovo PDF",
