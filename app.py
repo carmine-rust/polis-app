@@ -464,8 +464,7 @@ if scelta == "Autoletture":
                 st.error(f"Errore durante l'elaborazione: {e}")
 
 elif scelta == "Preventivo di Connessione":
-    
-    # --- COSTANTI ---
+    # --- 1. COSTANTI E CONFIGURAZIONE INIZIALE ---
     TIC_DOMESTICO_LE6 = 62.30  
     TIC_ALTRI_USI_BT = 78.81
     TIC_MT = 62.74
@@ -474,30 +473,20 @@ elif scelta == "Preventivo di Connessione":
     FISSO_BASE_CALCOLO = 25.88
     COSTO_PASSAGGIO_MT = 494.83
     IBAN_POLIS = "IT80P0103015200000007044056 - Monte dei Paschi di Siena"
-    
-    # --- INIZIALIZZAZIONE VARIABILI (Evita l'errore NameError riga 595) ---
-    delta, tar, c_tec, c_gest, imp, totale = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-    p_att, p_new, c_dist = 0.0, 0.0, 0.0
+    SENDER_EMAIL = st.secrets["EMAIL_SENDER"]
+    SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+    SMTP_SERVER = st.secrets["EMAIL_SERVER"]
+    SMTP_PORT = int(st.secrets["EMAIL_PORT"])
+    MAIL_CC = "amministrazione@polisenergia.it"
+
+    # Inizializzazione variabili per evitare errori di mancata definizione
+    p_att, p_new, c_dist, delta, tar = 0.0, 0.0, 0.0, 0.0, 0.0
     passaggio_mt = False
     t_partenza = "BT"
 
-    # --- STILE CSS ---
-    st.markdown("""
-        <style>
-        .stApp { background-color: #004a99; }
-        h1, h2, h3, p, span, label, .stMarkdown { color: white !important; }
-        .stTextInput>div>div>input { background-color: white !important; color: black !important; }
-        div.stButton > button:first-child { background-color: #28a745 !important; color: white !important; border-radius: 8px; font-weight: bold; width: 100%; }
-        </style>
-    """, unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-        try: st.image("logo_polis.png", width=250)
-        except: st.markdown("<h1 style='text-align: center;'>POLIS</h1>", unsafe_allow_html=True)
-
     st.title("⚡ PolisEnergia - Preventivatore")
 
-  # --- 1. DATI CLIENTE ---
+    # --- 2. DATI CLIENTE ---
     with st.container():
         c1, c2 = st.columns(2)
         nome = c1.text_input("Ragione Sociale", key="n").upper()
@@ -507,7 +496,8 @@ elif scelta == "Preventivo di Connessione":
         regime = c2.selectbox("Regime IVA", ["10%", "22%", "Esente", "P.A."], key="r")
 
     st.divider()
-    # --- 2. CONFIGURAZIONE PRATICA ---
+
+    # --- 3. CONFIGURAZIONE PRATICA ---
     c3, c4 = st.columns([2, 1])
     pratica = c3.selectbox("Tipo Pratica", ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento Contatore"], key="prat")
     tipo_ut = c4.radio("Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="ut")
@@ -526,8 +516,7 @@ elif scelta == "Preventivo di Connessione":
         s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
         c_dist = SPOSTAMENTO_10MT if "Entro" in s_dist else st.number_input("Costo Rilievo €", 0.0, key="sdc")
 
-    # --- 3. LOGICA DI CALCOLO ---
-    
+    # --- 4. LOGICA DI CALCOLO ---
     limitatore = False
     if tipo_ut == "Altri Usi" and 15 < p_new <= 30:
         limitatore = st.checkbox("Abilita Limitatore (Franchigia +10%)", value=True, key="lim_flag")
@@ -546,26 +535,16 @@ elif scelta == "Preventivo di Connessione":
         elif t_partenza == "MT" or passaggio_mt: tar = TIC_MT
         else: tar = TIC_ALTRI_USI_BT
 
-    # --- CALCOLO IMPONIBILE CORRETTO ---
+    # Calcolo Imponibile (Corretto per Nuova Connessione)
     if "Spostamento" in pratica:
-        # Per lo spostamento conta solo la quota distanza/rilievo
         c_tec = c_dist
     elif "Nuova" in pratica:
-        # Per la nuova connessione: (kW * tariffa) + Quota Distanza
         c_tec = round((delta * tar) + c_dist, 2)
     else:
-        # Per Aumenti e Subentri: solo (kW * tariffa)
         c_tec = round(delta * tar, 2)
 
-    # Aggiunta eventuale passaggio MT (se selezionato)
     if passaggio_mt: 
         c_tec += COSTO_PASSAGGIO_MT
-    
-    # Da qui in poi il resto del calcolo (Gestione, Istruttoria, IVA)
-    c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
-    imp = round(c_tec + c_gest + ONERI_ISTRUTTORIA, 2)
-    # ... il resto rimane uguale ...
-    if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
     
     c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
     imp = round(c_tec + c_gest + ONERI_ISTRUTTORIA, 2)
@@ -573,9 +552,8 @@ elif scelta == "Preventivo di Connessione":
     iva_e = round(imp * (iva_p/100), 2)
     bollo = 2.0 if (regime == "Esente" and imp > 77.47) else 0.0
     totale = round(imp + bollo, 2) if "P.A." in regime else round(imp + iva_e + bollo, 2)
-  
-    # --- 4. ANTEPRIMA ---
-    
+
+    # --- 5. ANTEPRIMA ---
     st.subheader("📊 Anteprima Calcolo")
     col_t1, col_t2 = st.columns([2, 1])
     with col_t1:
@@ -587,60 +565,58 @@ elif scelta == "Preventivo di Connessione":
         st.metric("TOTALE", f"{totale:.2f} €")
         if "Spostamento" not in pratica:
             st.info(f"Delta: {delta} kW | Tariffa: {tar} €/kW")
-   
-# --- 6. INVIO EMAIL (PROTETTO DA CRASH) ---
-# Eseguiamo questo blocco SOLO se il PDF è stato generato e il codice esiste
-if 'current_cod' in st.session_state and 'pdf_bytes' in st.session_state:
-    st.divider()
-    st.subheader("📧 Invio Documentazione")
-    
-    # Generazione parametri per la firma (Link e OTP)
-    # Usiamo un seed basato sul codice per mantenere l'OTP stabile durante i ricarichi della pagina
-    if 'current_otp' not in st.session_state:
-        st.session_state.current_otp = str(random.randint(100000, 999999))
-    
-    otp = st.session_state.current_otp
-    link_firma = f"https://operation-polisenergia.streamlit.app/?codice={st.session_state.current_cod}&otp={otp}"
-    
-    testo_predefinito = (
-        f"Spett.le {nome},\n\n"
-        f"in allegato trasmettiamo il preventivo n. {st.session_state.current_cod} relativo all'impianto sito in {indirizzo}.\n\n"
-        f"Puoi procedere alla firma elettronica cliccando sul seguente link:\n{link_firma}\n"
-        f"Codice OTP di accesso: {otp}\n\n"
-        "Restiamo a disposizione per ogni chiarimento.\n"
-        "Cordiali saluti,\nPolisEnergia srl"
-    )
-    
-    corpo_mail = st.text_area("Modifica il testo dell'email:", value=testo_predefinito, height=200)
-    
-    # Aggiungiamo una key univoca al bottone per evitare altri errori di DuplicateID
-    if st.button("🚀 INVIA EMAIL AL CLIENTE", use_container_width=True, key="btn_invia_email_final"):
-        if not email_dest:
-            st.error("Inserisci l'email del cliente prima di inviare!")
-        else:
-            try:
-                with st.spinner("Invio in corso..."):
-                    # Configurazione Messaggio
-                    msg = MIMEMultipart()
-                    msg['From'] = SENDER_EMAIL
-                    msg['To'] = email_dest
-                    msg['Cc'] = MAIL_CC
-                    msg['Subject'] = f"Preventivo PolisEnergia n. {st.session_state.current_cod} - {nome}"
-                    
-                    msg.attach(MIMEText(corpo_mail, 'plain'))
-                    
-                    # Allegato PDF
-                    part = MIMEApplication(st.session_state.pdf_bytes, Name=f"Preventivo_{st.session_state.current_cod}.pdf")
-                    part['Content-Disposition'] = f'attachment; filename="Preventivo_{st.session_state.current_cod}.pdf"'
-                    msg.attach(part)
-                    
-                    # Invio tramite SMTP
-                    context = ssl.create_default_context()
-                    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
-                        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                        server.send_message(msg)
-                        
-                    st.success(f"✅ Email inviata con successo a {email_dest}!")
+
+    # --- 6. PULSANTI AZIONE ---
+    c_btn1, c_btn2 = st.columns(2)
+    with c_btn1:
+        if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True, key="btn_genera_final"):
+            cod = datetime.now().strftime("%y%m%d%H%M%S")
+            st.session_state.current_cod = cod
+            st.session_state.pdf_bytes = genera_pdf_polis({
+                "Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo, 
+                "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, 
+                "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, "Totale": totale, "IBAN": IBAN_POLIS
+            })
+            st.success(f"Preventivo {cod} generato!")
+
+    with c_btn2:
+        if st.button("🧹 PULISCI TUTTO", use_container_width=True, key="pulisci_preventivatore_final"):
+            for key in list(st.session_state.keys()): del st.session_state[key]
+            st.rerun()
+
+    # --- 7. INVIO EMAIL (SOLO SE PDF GENERATO) ---
+    if 'current_cod' in st.session_state and 'pdf_bytes' in st.session_state:
+        st.divider()
+        st.subheader("📧 Invio Documentazione")
+        
+        if 'current_otp' not in st.session_state:
+            st.session_state.current_otp = str(random.randint(100000, 999999))
+        
+        otp = st.session_state.current_otp
+        link_firma = f"https://operation-polisenergia.streamlit.app/?codice={st.session_state.current_cod}&otp={otp}"
+        
+        testo_mail = st.text_area("Modifica testo email:", height=180, value=f"Spett.le {nome},\nin allegato il preventivo n. {st.session_state.current_cod}.\n\nFirma qui: {link_firma}\nOTP: {otp}")
+        
+        if st.button("🚀 INVIA EMAIL AL CLIENTE", use_container_width=True, key="btn_send_mail_ok"):
+            if not email_dest:
+                st.error("Inserisci l'email!")
+            else:
+                try:
+                    with st.spinner("Invio in corso..."):
+                        msg = MIMEMultipart()
+                        msg['From'], msg['To'], msg['Cc'] = SENDER_EMAIL, email_dest, MAIL_CC
+                        msg['Subject'] = f"Preventivo PolisEnergia n. {st.session_state.current_cod}"
+                        msg.attach(MIMEText(testo_mail, 'plain'))
+                        part = MIMEApplication(st.session_state.pdf_bytes, Name=f"Preventivo_{st.session_state.current_cod}.pdf")
+                        part['Content-Disposition'] = f'attachment; filename="Preventivo_{st.session_state.current_cod}.pdf"'
+                        msg.attach(part)
+                        context = ssl.create_default_context()
+                        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+                            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                            server.send_message(msg)
+                        st.success("Email inviata con successo!")
+                except Exception as e:
+                    st.error(f"Errore: {e}")
             except Exception as e:
                 st.error(f"Errore durante l'invio: {e}")
 else:
