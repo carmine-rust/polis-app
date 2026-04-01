@@ -524,10 +524,10 @@ elif scelta == "Preventivo di Connessione":
         if tipo_ut == "Altri Usi":
             t_partenza = col1.selectbox("Tensione", ["BT", "MT"], key="t")
             if t_partenza == "BT": passaggio_mt = col1.checkbox("Passaggio a MT?", key="mt")
-        p_att = col1.number_input("kW Attuali", value=3.0, key="pa")
-        p_new = col2.number_input("kW Richiesti", value=4.5, key="pn")
+        p_att = col1.number_input("kW Attuali", value=0.0, key="pa")
+        p_new = col2.number_input("kW Richiesti", value=0.0, key="pn")
     elif "Nuova" in pratica:
-        p_new = st.number_input("kW Richiesti", value=3.0, key="pnc")
+        p_new = st.number_input("kW Richiesti", value=0.0, key="pnc")
         c_dist = st.number_input("Quota Distanza €", 0.0, key="dist")
     elif "Spostamento" in pratica:
         s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
@@ -572,7 +572,15 @@ elif scelta == "Preventivo di Connessione":
     # Calcoli Economici Finali
     c_tec = c_dist if "Spostamento" in pratica else round(delta * tar, 2)
     if passaggio_mt: c_tec += COSTO_PASSAGGIO_MT
-    if "Nuova" in pratica: c_tec += c_dist
+    if "Nuova" in pratica:
+        tar = TIC_ALTRI_USI_BT
+
+    elif (tipo_ut == "Domestico" and p_new <= 6):
+        tar = TIC_DOMESTICO_LE6
+    elif (t_partenza == "MT" or passaggio_mt):
+        tar = TIC_MT
+    else:
+        tar = TIC_ALTRI_USI_BT
 
     c_gest = round((c_tec + FISSO_BASE_CALCOLO) * 0.1, 2)
     imp = round(c_tec + c_gest + ONERI_ISTRUTTORIA, 2)
