@@ -497,9 +497,6 @@ elif scelta == "Preventivo di Connessione":
 
     st.title("⚡ PolisEnergia - Preventivatore")
 
-    if st.button("🧹 PULISCI TUTTO", use_container_width=True):
-        for key in list(st.session_state.keys()): del st.session_state[key]
-        st.rerun()
   # --- 1. DATI CLIENTE ---
     with st.container():
         c1, c2 = st.columns(2)
