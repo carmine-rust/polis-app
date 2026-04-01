@@ -588,27 +588,6 @@ elif scelta == "Preventivo di Connessione":
         if "Spostamento" not in pratica:
             st.info(f"Delta: {delta} kW | Tariffa: {tar} €/kW")
    
-    # --- 5. AZIONI ---
-    
-    if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True):
-        cod = datetime.now().strftime("%y%m%d%H%M%S")
-        st.session_state.current_cod = cod
-        # Passaggio dati alla funzione
-        st.session_state.pdf_bytes = genera_pdf_polis({
-            "Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo, 
-            "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, 
-            "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, "Totale": totale, "IBAN": IBAN_POLIS
-        })
-        st.success(f"Archiviato con codice {cod}")
-
-    if 'pdf_bytes' in st.session_state:
-        pdf_buffer = io.BytesIO(st.session_state.pdf_bytes)
-        st.download_button(label="📥 SCARICA PDF",
-            data=pdf_buffer,
-            file_name=f"{st.session_state.current_cod}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
 # --- 6. INVIO EMAIL ---
         st.divider()
         st.subheader("📧 Invio Documentazione")
