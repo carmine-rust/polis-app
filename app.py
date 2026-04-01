@@ -356,11 +356,11 @@ if not st.session_state.autenticato:
 st.sidebar.success("✅ Accesso Autorizzato")
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio("Cosa vuoi fare?", 
-                         ["Autoletture (TAL 0050)", "Preventivo di Connessione"])
+                         ["Autoletture ", "Preventivo di Connessione"])
 
 
-if scelta == "Autoletture (TAL 0050)":
-    st.header("📊 Generatore Flussi Autoletture (TAL 0050)")
+if scelta == "Autoletture":
+    st.header("📊 Generatore Flussi Autoletture")
     file_arera_path = "arera.csv"
     if not os.path.exists(file_arera_path):
         st.error("❌ File 'arera.csv' non trovato su GitHub. Caricalo nel repository per continuare.")
