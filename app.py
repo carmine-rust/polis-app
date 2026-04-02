@@ -622,7 +622,30 @@ elif scelta == "Preventivo di Connessione":
                 "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, 
                 "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, "Totale": totale, "IBAN": IBAN_POLIS
             })
-            st.success(f"Preventivo {cod} generato!")
+            try:
+                # Connessione al foglio
+                conn = st.connection("gsheets", type=GSheetsConnection)
+                
+                # Leggiamo i dati esistenti
+                df_esistente = conn.read(ttl=0)
+                
+                # Creiamo la nuova riga (Forziamo 'cod' come stringa per evitare il problema del .0)
+                nuova_riga = pd.DataFrame([{
+                    "Data": datetime.now().strftime("%d/%m/%Y"),
+                    "Codice": str(cod),
+                    "Cliente": nome,
+                    "POD": pod,
+                    "Totale": totale,
+                    "Stato": "Inviato"
+                }])
+                
+                # Uniamo e aggiorniamo
+                df_finale = pd.concat([df_esistente, nuova_riga], ignore_index=True)
+                conn.update(data=df_finale)
+                st.success(f"✅ Preventivo {cod} generato e archiviato!")
+            
+            except Exception as e:
+                st.error(f"⚠️ PDF generato ma errore salvataggio database: {e}")
 
     with c_btn2:
         if st.button("🧹 PULISCI TUTTO", use_container_width=True, key="pulisci_preventivatore_final"):
