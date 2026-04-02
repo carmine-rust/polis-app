@@ -219,8 +219,8 @@ def genera_pdf_polis(d):
 query_params = st.query_params
 
 # Recuperiamo i parametri dall'URL (se esistono)
-otp_param = query_params.get("otp", "")
-codice_param = query_params.get("codice", "")
+codice_param = st.query_params.get("codice", "")
+otp_param = st.query_params.get("otp", "")
 
 # --- BLOCCO A: INTERCETTAZIONE CLIENTE (Solo se i parametri sono presenti) ---
 if otp_param and codice_param:
@@ -234,12 +234,15 @@ if otp_param and codice_param:
         # Connessione al Database per recuperare i dati del preventivo
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl=0)
-        df_c = df["Codice"].astype(str).str.strip().str.replace('.0', '')
+        df['Codice_Clean'] = df['Codice'].astype(str).str.strip().str.replace('.0', '', regex=False)
 
-        if cod_u in df_c.values:
-            idx = df_c[df_c == cod_u].index[0]
+        if cod_u in df['Codice_Clean'].values:
+            idx = df[df['Codice_Clean'] == cod_u].index[0]
             nome_cliente = df.at[idx, "Cliente"]
-            importo_totale = float(df.at[idx, "Totale"])
+            try:
+                importo_totale = float(df.at[idx, "Totale"])
+            except:
+                importo_totale = 0.0
 
             # --- BOX INFORMAZIONI PAGAMENTO (BIANCO SU BLU) ---
             st.markdown(f"""
@@ -259,14 +262,15 @@ if otp_param and codice_param:
             """, unsafe_allow_html=True)
 
             st.markdown("<p style='color: white; font-weight: bold; margin-bottom: 0;'>Inserisci l'OTP ricevuto via mail per confermare:</p>", unsafe_allow_html=True)
-            otp_in = st.text_input("OTP_INPUT", label_visibility="collapsed", max_chars=6)
+            otp_in = st.text_input("Inserisci l'OTP ricevuto via mail:", max_chars=6)
             
             if st.button("✅ FIRMA E ACCETTA ORA"):
                 if otp_in.strip() == otp_u:
                     # 1. Aggiornamento Database
                     df.at[idx, "Stato"] = "ACCETTATO"
                     df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    conn.update(data=df)
+                    df_to_save = df.drop(columns=['Codice_Clean'])
+                    conn.update(data=df_to_save)
                     
                     # 2. Invio Notifica Email
                     try:
@@ -287,7 +291,7 @@ if otp_param and codice_param:
                     st.success("Documento firmato con successo!")
                     st.balloons()
                 else:
-                    st.error("L'OTP inserito non è corretto.")
+                    st.error("❌ OTP non corretto. Riprova.")
             
             # --- BLOCCO FONDAMENTALE ---
             st.stop() # Impedisce al cliente di vedere il menu operativo
