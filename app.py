@@ -761,8 +761,8 @@ else:
 
         otp = st.session_state.current_otp
         cod = st.session_state.current_cod
-# IL NUOVO LINK (Punta a Google Apps Script, non più a Streamlit)
-        link = f"https://script.google.com/macros/s/AKfycbz4KHaX3Wbj32QKfDe-77DyXGdt_oJHMxaFc7nmm8ZmrC_Vmk04O5jnPyBbWm0VyMbn/exec?codice={cod}&otp={otp}"
+
+        link = f"https://operation-polisenergia.streamlit.app/?codice={cod}&otp={otp}"
     
         testo_pre = f"Spett.le {nome},\nin allegato il preventivo {st.session_state.current_cod}.\nPuoi firmare qui: {link}\nOTP: {otp}"
         corpo_mail = st.text_area("Modifica Testo Mail:", value=testo_pre, height=150)
