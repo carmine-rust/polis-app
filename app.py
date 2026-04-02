@@ -675,27 +675,58 @@ else:
         st.rerun()
 
     # --- 4. AZIONI ---
-    if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True, key="genera_pdf_preventivatore_unico"):
-        cod = datetime.now().strftime("%y%m%d%H%M%S")
-        st.session_state.current_cod = cod
-        st.session_state.pdf_bytes = genera_pdf_polis({"Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo, "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, "Totale": totale, "IBAN": IBAN_POLIS})
-    
-        # Salva GSheets
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(ttl=0)
-        row = pd.DataFrame([{"Data": datetime.now().strftime("%d/%m/%Y"), "Codice": cod, "Cliente": nome, "POD": pod, "Totale": totale, "Stato": "Inviato"}])
-        conn.update(data=pd.concat([df, row], ignore_index=True))
-        st.success(f"Archiviato con codice {cod}")
+    # --- 6. GENERAZIONE E DOWNLOAD PDF ---
+    col_pdf1, col_pdf2 = st.columns(2)
 
-    if 'pdf_bytes' in st.session_state:
-        pdf_buffer = io.BytesIO(st.session_state.pdf_bytes)
-        st.download_button(label="📥 SCARICA PDF",
-            data=pdf_buffer, # Ora passiamo il buffer, non la variabile diretta
-            file_name=f"{st.session_state.current_cod}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            key="btn_download_finale"
-        )
+    with col_pdf1:
+        if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary", use_container_width=True, key="genera_pdf_preventivatore_unico"):
+            # Generazione codice univoco
+            cod = datetime.now().strftime("%y%m%d%H%M%S")
+            st.session_state.current_cod = cod
+            
+            # Generazione PDF (Assumendo che la funzione restituisca bytes)
+            st.session_state.pdf_bytes = genera_pdf_polis({
+                "Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo, 
+                "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest, 
+                "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e, 
+                "Totale": totale, "IBAN": IBAN_POLIS
+            })
+            
+            # Salvataggio su Google Sheets
+            try:
+                conn = st.connection("gsheets", type=GSheetsConnection)
+                df = conn.read(ttl=0)
+                row = pd.DataFrame([{
+                    "Data": datetime.now().strftime("%d/%m/%Y"), 
+                    "Codice": cod, 
+                    "Cliente": nome, 
+                    "POD": pod, 
+                    "Totale": totale, 
+                    "Stato": "Inviato"
+                }])
+                updated_df = pd.concat([df, row], ignore_index=True)
+                conn.update(data=updated_df)
+                st.success(f"✅ Archiviato con codice {cod}")
+            except Exception as e:
+                st.error(f"Errore salvataggio GSheets: {e}")
+
+    with col_pdf2:
+        # Mostriamo il tasto download solo se i bytes esistono in session_state
+        if 'pdf_bytes' in st.session_state and st.session_state.pdf_bytes:
+            # Creiamo il buffer partendo dai bytes salvati
+            pdf_buffer = io.BytesIO(st.session_state.pdf_bytes)
+            
+            st.download_button(
+                label="📥 2. SCARICA PDF",
+                data=pdf_buffer,
+                file_name=f"Preventivo_{st.session_state.current_cod}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key="btn_download_finale"
+            )
+        else:
+            # Tasto disattivato se non c'è ancora nulla da scaricare
+            st.button("📥 2. SCARICA PDF", disabled=True, use_container_width=True, key="btn_download_disabled")
     
         st.divider()
         otp = str(random.randint(100000, 999999))
