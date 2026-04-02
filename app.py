@@ -436,7 +436,7 @@ if scelta == "Autoletture":
                         piva_dd_reale = mappa_pdr_distr[curr_pdr].zfill(11)
                         info_distr = mappa_piva_distr.get(piva_dd_reale, {'nome': 'NON TROVATO'})
 
-               gruppi = defaultdict(list)
+                gruppi = defaultdict(list)
                 
                 for _, riga in df_let.iterrows():
                     pdr_originale = str(riga[col_pdr]).strip()
