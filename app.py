@@ -381,128 +381,118 @@ if scelta == "Autoletture":
     if file_tech and file_letture:
         if st.button("🚀 GENERA PACCHETTO XML (.ZIP)", use_container_width=True):
             try:
-                # 1. LETTURA DATI
-                df_arera = pd.read_csv(file_arera_path, encoding='latin-1', sep=';', on_bad_lines='skip', dtype=str)
-                df_arera.columns = [c.strip().upper() for c in df_arera.columns]
-                
-                mappa_piva_distr = {}
-                for _, r in df_arera.iterrows():
-                    piva_d = "".join(filter(str.isdigit, str(r['PARTITA IVA']))).zfill(11)
-                    mappa_piva_distr[piva_d] = {
-                        'nome': str(r['RAGIONE SOCIALE']).strip().upper()
-                    }
-
-                df_tech = pd.read_excel(file_tech, dtype=str)
-                df_tech.columns = [c.strip().upper() for c in df_tech.columns]
-                
-                piva_polis_clean = "".join(filter(str.isdigit, piva_mittente)).zfill(11)
-                df_tech['PIVA_UDD_CLEAN'] = df_tech['PIVA_UDD'].str.replace(r'\D', '', regex=True).str.zfill(11)
-                df_tech['PIVA_DD_CLEAN'] = df_tech['PIVA_DD'].str.replace(r'\D', '', regex=True).str.zfill(11)
-                df_tech['COD_PDR_CLEAN'] = df_tech['COD_PDR'].str.split('.').str[0].str.strip().str.zfill(14)
-                
-                df_tech_polis = df_tech[df_tech['PIVA_UDD_CLEAN'] == piva_polis_clean].copy()
-                df_tech_esterni = df_tech[df_tech['PIVA_UDD_CLEAN'] != piva_polis_clean].copy()
-                
-                mappa_matr_pdr = pd.Series(df_tech_polis['MATR_MIS'].values, index=df_tech_polis.COD_PDR.str.strip()).to_dict()
-                mappa_pdr_distr = pd.Series(df_tech_polis['PIVA_DD'].values, index=df_tech_polis.COD_PDR.str.strip()).to_dict()
-
-                c_matr_corr = next((c for c in df_tech.columns if 'CORR' in c), None)
-                mappa_matr_corr = pd.Series(df_tech_polis[c_matr_corr].values, index=df_tech_polis['COD_PDR_CLEAN']).to_dict() if c_matr_corr else {}
-                
-                df_let = pd.read_csv(file_letture, sep=None, engine='python', encoding='utf-8-sig', dtype=str)
-                df_let.columns = [c.strip().upper() for c in df_let.columns]
-
-                col_pdr = next(c for c in df_let.columns if 'PDR' in c)
-                col_data = next(c for c in df_let.columns if 'DATA' in c)
-                col_lett = next(c for c in df_let.columns if 'LETTURA' in c and 'CORRE' not in c)
-                col_corr = next((c for c in df_let.columns if 'CORRETTORE' in c or 'CONVERT' in c), None)
-
-                if not df_tech_esterni.empty:
-                    st.warning(f"📂 Rilevati {len(df_tech_esterni)} PDR di UDD esterni. Generazione Excel...")
-                    for (piva_udd, rag_soc), group in df_tech_esterni.groupby(['PIVA_UDD', 'RAGIONE_SOCIALE_UDD']):
-                        # Uniamo le letture ai dati anagrafici dei terzi
-                        autoletture_esterne = group.merge(df_let, left_on='COD_PDR', right_on=col_pdr)
-                        if not autoletture_esterne.empty:
-                            nome_f = f"Autoletture_{piva_udd}_{rag_soc.replace(' ', '_')}.xlsx"
-                            autoletture_esterne.to_excel(nome_f, index=False)
-                            st.info(f"💾 File creato: {nome_f}")
-
-                # Qui inizierà il tuo ciclo per creare gli XML...
-                for _, row_let in df_let.iterrows():
-                    curr_pdr = str(row_let[col_pdr]).strip()
-                    
-                    # Proseguiamo solo se il PDR è di PolisEnergia
-                    if curr_pdr in mappa_pdr_distr:
-                        piva_dd_reale = mappa_pdr_distr[curr_pdr].zfill(11)
-                        info_distr = mappa_piva_distr.get(piva_dd_reale, {'nome': 'NON TROVATO'})
-
-                gruppi = defaultdict(list)
-                
-                for _, riga in df_let.iterrows():
-                    pdr_originale = str(riga[col_pdr]).strip()
-                    # Standardizziamo il PDR a 14 cifre (senza il .0 finale se presente)
-                    pdr_clean = pdr_originale.split('.')[0].zfill(14)
-                    
-                    # --- CONTROLLO 1: Il PDR appartiene a PolisEnergia? ---
-                    # Se il PDR non è nella mappa dei distributori di Polis, lo saltiamo (sarà gestito nel file Excel esterni)
-                    if pdr_clean not in mappa_pdr_distr:
-                        continue
-                    
-                    # --- CONTROLLO 2: Recupero info Distributore tramite PIVA_DD ---
-                    piva_dd_reale = mappa_pdr_distr[pdr_clean].zfill(11)
-                    
-                    # Cerchiamo la ragione sociale nel file ARERA usando la P.IVA
-                    info_arera = mappa_piva_distr.get(piva_dd_reale)
-                    
-                    if info_arera:
-                        distr_nome = info_arera['nome']
-                        ln = pulisci_valore(riga[col_lett])
-                        lc = pulisci_valore(riga[col_corr]) if col_corr else None
-                        
-                        if ln:
-                            gruppi[piva_dd_reale].append({
-                                'distr_nome': distr_nome, 
-                                'pdr': pdr_clean, 
-                                'data': formatta_data_italiana(riga[col_data]),
-                                'lett': ln, 
-                                'corr': lc,
-                                'm_pdr': str(mappa_matr_pdr.get(pdr_clean, "0")).split('.')[0],
-                                'm_corr': str(mappa_matr_corr.get(pdr_clean, "")).split('.')[0] if pdr_clean in mappa_matr_corr else None
-                            })
-                    else:
-                        # Se proprio non lo trova nel file ARERA, usiamo un nome generico
-                        st.warning(f"⚠️ Distributore con P.IVA {piva_dd_reale} non trovato nel file ARERA per il PDR {pdr_clean}")
-
-                # 3. CREAZIONE ZIP IN MEMORIA
+                # Inizializziamo il contenitore ZIP e la barra di progresso subito
                 zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                    for piva_d, lista in gruppi.items():
-                        # Creazione XML per questo distributore
-                        root = ET.Element("Prestazione", cod_servizio="TAL", cod_flusso="0050")
-                        id_req = ET.SubElement(root, "IdentificativiRichiesta")
-                        ET.SubElement(id_req, "piva_utente").text = piva_mittente
-                        ET.SubElement(id_req, "piva_distr").text = piva_d
+                progress_bar = st.progress(0)
+                
+                with st.spinner("🚀 Elaborazione in corso..."):
+                    # 1. LETTURA DATI ARERA
+                    df_arera = pd.read_csv(file_arera_path, encoding='latin-1', sep=';', on_bad_lines='skip', dtype=str)
+                    df_arera.columns = [c.strip().upper() for c in df_arera.columns]
+                    
+                    mappa_piva_distr = {}
+                    for _, r in df_arera.iterrows():
+                        piva_d = "".join(filter(str.isdigit, str(r['PARTITA IVA']))).zfill(11)
+                        mappa_piva_distr[piva_d] = {'nome': str(r['RAGIONE SOCIALE']).strip().upper()}
+
+                    # 2. LETTURA ANAGRAFICA E SMISTAMENTO
+                    df_tech = pd.read_excel(file_tech, dtype=str)
+                    df_tech.columns = [c.strip().upper() for c in df_tech.columns]
+                    
+                    piva_polis_clean = "".join(filter(str.isdigit, piva_mittente)).zfill(11)
+                    df_tech['PIVA_UDD_CLEAN'] = df_tech['PIVA_UDD'].str.replace(r'\D', '', regex=True).str.zfill(11)
+                    df_tech['PIVA_DD_CLEAN'] = df_tech['PIVA_DD'].str.replace(r'\D', '', regex=True).str.zfill(11)
+                    df_tech['COD_PDR_CLEAN'] = df_tech['COD_PDR'].str.split('.').str[0].str.strip().str.zfill(14)
+                    
+                    df_tech_polis = df_tech[df_tech['PIVA_UDD_CLEAN'] == piva_polis_clean].copy()
+                    df_tech_esterni = df_tech[df_tech['PIVA_UDD_CLEAN'] != piva_polis_clean].copy()
+                    
+                    # Mappe per Polis
+                    mappa_matr_pdr = pd.Series(df_tech_polis['MATR_MIS'].values, index=df_tech_polis['COD_PDR_CLEAN']).to_dict()
+                    mappa_pdr_distr = pd.Series(df_tech_polis['PIVA_DD_CLEAN'].values, index=df_tech_polis['COD_PDR_CLEAN']).to_dict()
+                    c_matr_corr = next((c for c in df_tech.columns if 'CORR' in c), None)
+                    mappa_matr_corr = pd.Series(df_tech_polis[c_matr_corr].values, index=df_tech_polis['COD_PDR_CLEAN']).to_dict() if c_matr_corr else {}
+                    
+                    # 3. LETTURA AUTOLETTURE
+                    df_let = pd.read_csv(file_letture, sep=None, engine='python', encoding='utf-8-sig', dtype=str)
+                    df_let.columns = [c.strip().upper() for c in df_let.columns]
+                    col_pdr = next(c for c in df_let.columns if 'PDR' in c)
+                    col_data = next(c for c in df_let.columns if 'DATA' in c)
+                    col_lett = next(c for c in df_let.columns if 'LETTURA' in c and 'CORRE' not in c)
+                    col_corr = next((c for c in df_let.columns if 'CORRETTORE' in c or 'CONVERT' in c), None)
+
+                    progress_bar.progress(25) # 25% completato (lettura file)
+
+                    # --- APERTURA ZIP PER SCRITTURA ---
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
                         
-                        for item in lista:
-                            d = ET.SubElement(root, "DatiPdR")
-                            ET.SubElement(d, "cod_pdr").text = item['pdr']
-                            ET.SubElement(d, "matr_mis").text = item['m_pdr']
-                            ET.SubElement(d, "data_com_autolet_cf").text = item['data']
-                            ET.SubElement(d, "let_tot_prel").text = item['lett']
-                            if item['corr']:
-                                ET.SubElement(d, "let_tot_conv").text = item['corr']
-                                if item['m_corr'] and item['m_corr'] not in ["nan", "None", ""]:
-                                    ET.SubElement(d, "matr_conv").text = item['m_corr']
+                        # --- 4. GENERAZIONE EXCEL PER ESTERNI ---
+                        if not df_tech_esterni.empty:
+                            for (piva_udd, rag_soc), group in df_tech_esterni.groupby(['PIVA_UDD', 'RAGIONE_SOCIALE_UDD']):
+                                # Uniamo con le letture usando il PDR pulito
+                                group_pdr_clean = group['COD_PDR_CLEAN'].tolist()
+                                autolett_est = df_let[df_let[col_pdr].str.split('.').str[0].str.zfill(14).isin(group_pdr_clean)]
+                                
+                                if not autolett_est.empty:
+                                    nome_ex = f"AUTOLETTURE_ESTERNE_{piva_udd}_{re.sub(r'\W+', '', rag_soc)[:15]}.xlsx"
+                                    ex_buffer = io.BytesIO()
+                                    autolett_est.to_excel(ex_buffer, index=False)
+                                    zip_file.writestr(nome_ex, ex_buffer.getvalue())
+                        
+                        progress_bar.progress(50) # 50% completato (excel esterni)
 
-                        # Trasformazione in stringa e aggiunta allo ZIP
-                        xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-                        clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
-                        nome_file = f"TAL_0050_{piva_d}_{clean_name}.xml"
-                        zip_file.writestr(nome_file, xml_str)
+                        # --- 5. RAGGRUPPAMENTO XML POLIS ---
+                        gruppi = defaultdict(list)
+                        for _, riga in df_let.iterrows():
+                            pdr_clean = str(riga[col_pdr]).split('.')[0].zfill(14)
+                            if pdr_clean in mappa_pdr_distr:
+                                piva_dd_reale = mappa_pdr_distr[pdr_clean]
+                                info_arera = mappa_piva_distr.get(piva_dd_reale)
+                                if info_arera:
+                                    ln = pulisci_valore(riga[col_lett])
+                                    lc = pulisci_valore(riga[col_corr]) if col_corr else None
+                                    if ln:
+                                        gruppi[piva_dd_reale].append({
+                                            'distr_nome': info_arera['nome'],
+                                            'pdr': pdr_clean,
+                                            'data': formatta_data_italiana(riga[col_data]),
+                                            'lett': ln, 'corr': lc,
+                                            'm_pdr': str(mappa_matr_pdr.get(pdr_clean, "0")).split('.')[0],
+                                            'm_corr': str(mappa_matr_corr.get(pdr_clean, "")).split('.')[0] if pdr_clean in mappa_matr_corr else None
+                                        })
 
-                # 4. DOWNLOAD FINALE
+                        # --- 6. SCRITTURA XML NELLO ZIP ---
+                        tot_g = len(gruppi)
+                        for i, (piva_d, lista) in enumerate(gruppi.items()):
+                            root = ET.Element("Prestazione", cod_servizio="TAL", cod_flusso="0050")
+                            id_req = ET.SubElement(root, "IdentificativiRichiesta")
+                            ET.SubElement(id_req, "piva_utente").text = piva_mittente
+                            ET.SubElement(id_req, "piva_distr").text = piva_d
+                            
+                            for item in lista:
+                                d = ET.SubElement(root, "DatiPdR")
+                                ET.SubElement(d, "cod_pdr").text = item['pdr']
+                                ET.SubElement(d, "matr_mis").text = item['m_pdr']
+                                ET.SubElement(d, "data_com_autolet_cf").text = item['data']
+                                ET.SubElement(d, "let_tot_prel").text = item['lett']
+                                if item['corr']:
+                                    ET.SubElement(d, "let_tot_conv").text = item['corr']
+                                    if item['m_corr'] and item['m_corr'] not in ["nan", "None", ""]:
+                                        ET.SubElement(d, "matr_conv").text = item['m_corr']
+
+                            xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+                            clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
+                            nome_file = f"TAL_0050_{piva_d}_{clean_name}.xml"
+                            zip_file.writestr(nome_file, xml_str)
+                            
+                            # Update progress bar
+                            progress_bar.progress(50 + int(((i+1)/tot_g)*50))
+
+                # --- 7. DOWNLOAD FINALE ---
                 zip_buffer.seek(0)
-                st.success(f"✅ Elaborazione completata! Creati file per {len(gruppi)} distributori.")
+                progress_bar.empty() # Rimuove la barra
+                st.success(f"✅ Completato! Creati {len(gruppi)} XML e i file Excel per esterni.")
+                
                 st.download_button(
                     label="📥 SCARICA PACCHETTO ZIP",
                     data=zip_buffer,
