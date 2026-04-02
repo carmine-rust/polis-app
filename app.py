@@ -385,43 +385,93 @@ if scelta == "Autoletture":
                 df_arera = pd.read_csv(file_arera_path, encoding='latin-1', sep=';', on_bad_lines='skip', dtype=str)
                 df_arera.columns = [c.strip().upper() for c in df_arera.columns]
                 
-                mappa_distr = {}
+                mappa_piva_distr = {}
                 for _, r in df_arera.iterrows():
-                    pref = str(r['CODICE PDR']).strip().split('.')[0].zfill(4)
-                    piva_d = "".join(filter(str.isdigit, str(r['PARTITA IVA'])))[:11].zfill(11)
-                    mappa_distr[pref] = {'piva': piva_d, 'nome': str(r['RAGIONE SOCIALE']).strip()}
+                    piva_d = "".join(filter(str.isdigit, str(r['PARTITA IVA']))).zfill(11)
+                    mappa_piva_distr[piva_d] = {
+                        'nome': str(r['RAGIONE SOCIALE']).strip().upper()
+                    }
 
                 df_tech = pd.read_excel(file_tech, dtype=str)
                 df_tech.columns = [c.strip().upper() for c in df_tech.columns]
-                mappa_matr_pdr = pd.Series(df_tech['MATR_MIS'].values, index=df_tech.COD_PDR.str.strip()).to_dict()
-                c_matr_corr = next((c for c in df_tech.columns if 'CORR' in c), None)
-                mappa_matr_corr = pd.Series(df_tech[c_matr_corr].values, index=df_tech.COD_PDR.str.strip()).to_dict() if c_matr_corr else {}
+                
+                piva_polis_clean = "".join(filter(str.isdigit, piva_mittente)).zfill(11)
+                df_tech['PIVA_UDD_CLEAN'] = df_tech['PIVA_UDD'].str.replace(r'\D', '', regex=True).str.zfill(11)
+                df_tech['PIVA_DD_CLEAN'] = df_tech['PIVA_DD'].str.replace(r'\D', '', regex=True).str.zfill(11)
+                df_tech['COD_PDR_CLEAN'] = df_tech['COD_PDR'].str.split('.').str[0].str.strip().str.zfill(14)
+                
+                df_tech_polis = df_tech[df_tech['PIVA_UDD_CLEAN'] == piva_polis_clean].copy()
+                df_tech_esterni = df_tech[df_tech['PIVA_UDD_CLEAN'] != piva_polis_clean].copy()
+                
+                mappa_matr_pdr = pd.Series(df_tech_polis['MATR_MIS'].values, index=df_tech_polis.COD_PDR.str.strip()).to_dict()
+                mappa_pdr_distr = pd.Series(df_tech_polis['PIVA_DD'].values, index=df_tech_polis.COD_PDR.str.strip()).to_dict()
 
+                c_matr_corr = next((c for c in df_tech.columns if 'CORR' in c), None)
+                mappa_matr_corr = pd.Series(df_tech_polis[c_matr_corr].values, index=df_tech_polis['COD_PDR_CLEAN']).to_dict() if c_matr_corr else {}
+                
                 df_let = pd.read_csv(file_letture, sep=None, engine='python', encoding='utf-8-sig', dtype=str)
                 df_let.columns = [c.strip().upper() for c in df_let.columns]
-                
+
                 col_pdr = next(c for c in df_let.columns if 'PDR' in c)
                 col_data = next(c for c in df_let.columns if 'DATA' in c)
                 col_lett = next(c for c in df_let.columns if 'LETTURA' in c and 'CORRE' not in c)
                 col_corr = next((c for c in df_let.columns if 'CORRETTORE' in c or 'CONVERT' in c), None)
 
-                # 2. RAGGRUPPAMENTO PER DISTRIBUTORE
-                gruppi = defaultdict(list)
+                if not df_tech_esterni.empty:
+                    st.warning(f"📂 Rilevati {len(df_tech_esterni)} PDR di UDD esterni. Generazione Excel...")
+                    for (piva_udd, rag_soc), group in df_tech_esterni.groupby(['PIVA_UDD', 'RAGIONE_SOCIALE_UDD']):
+                        # Uniamo le letture ai dati anagrafici dei terzi
+                        autoletture_esterne = group.merge(df_let, left_on='COD_PDR', right_on=col_pdr)
+                        if not autoletture_esterne.empty:
+                            nome_f = f"Autoletture_{piva_udd}_{rag_soc.replace(' ', '_')}.xlsx"
+                            autoletture_esterne.to_excel(nome_f, index=False)
+                            st.info(f"💾 File creato: {nome_f}")
+
+                # Qui inizierà il tuo ciclo per creare gli XML...
+                for _, row_let in df_let.iterrows():
+                    curr_pdr = str(row_let[col_pdr]).strip()
+                    
+                    # Proseguiamo solo se il PDR è di PolisEnergia
+                    if curr_pdr in mappa_pdr_distr:
+                        piva_dd_reale = mappa_pdr_distr[curr_pdr].zfill(11)
+                        info_distr = mappa_piva_distr.get(piva_dd_reale, {'nome': 'NON TROVATO'})
+
+               gruppi = defaultdict(list)
+                
                 for _, riga in df_let.iterrows():
-                    pdr = str(riga[col_pdr]).strip().split('.')[0].zfill(14)
-                    pref = pdr[:4]
-                    if pref in mappa_distr:
-                        info = mappa_distr[pref]
+                    pdr_originale = str(riga[col_pdr]).strip()
+                    # Standardizziamo il PDR a 14 cifre (senza il .0 finale se presente)
+                    pdr_clean = pdr_originale.split('.')[0].zfill(14)
+                    
+                    # --- CONTROLLO 1: Il PDR appartiene a PolisEnergia? ---
+                    # Se il PDR non è nella mappa dei distributori di Polis, lo saltiamo (sarà gestito nel file Excel esterni)
+                    if pdr_clean not in mappa_pdr_distr:
+                        continue
+                    
+                    # --- CONTROLLO 2: Recupero info Distributore tramite PIVA_DD ---
+                    piva_dd_reale = mappa_pdr_distr[pdr_clean].zfill(11)
+                    
+                    # Cerchiamo la ragione sociale nel file ARERA usando la P.IVA
+                    info_arera = mappa_piva_distr.get(piva_dd_reale)
+                    
+                    if info_arera:
+                        distr_nome = info_arera['nome']
                         ln = pulisci_valore(riga[col_lett])
                         lc = pulisci_valore(riga[col_corr]) if col_corr else None
+                        
                         if ln:
-                            gruppi[info['piva']].append({
-                                'distr_nome': info['nome'], 'pdr': pdr, 
+                            gruppi[piva_dd_reale].append({
+                                'distr_nome': distr_nome, 
+                                'pdr': pdr_clean, 
                                 'data': formatta_data_italiana(riga[col_data]),
-                                'lett': ln, 'corr': lc,
-                                'm_pdr': str(mappa_matr_pdr.get(pdr, "0")).split('.')[0],
-                                'm_corr': str(mappa_matr_corr.get(pdr, "")).split('.')[0] if pdr in mappa_matr_corr else None
+                                'lett': ln, 
+                                'corr': lc,
+                                'm_pdr': str(mappa_matr_pdr.get(pdr_clean, "0")).split('.')[0],
+                                'm_corr': str(mappa_matr_corr.get(pdr_clean, "")).split('.')[0] if pdr_clean in mappa_matr_corr else None
                             })
+                    else:
+                        # Se proprio non lo trova nel file ARERA, usiamo un nome generico
+                        st.warning(f"⚠️ Distributore con P.IVA {piva_dd_reale} non trovato nel file ARERA per il PDR {pdr_clean}")
 
                 # 3. CREAZIONE ZIP IN MEMORIA
                 zip_buffer = io.BytesIO()
