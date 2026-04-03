@@ -1,7 +1,7 @@
 import streamlit as st
 import math
 import pandas as pd
-import random
+import secrets
 import io
 import xml.etree.ElementTree as ET
 import re
@@ -10,7 +10,7 @@ import smtplib
 import ssl
 import zipfile
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import text
 from streamlit_gsheets import GSheetsConnection
@@ -33,13 +33,13 @@ st.set_page_config(
 # ==============================================================================
 # 2. COSTANTI GLOBALI
 # ==============================================================================
-IBAN_POLIS      = "IT80P0103015200000007044056"
-NOME_BANCA      = "Monte dei Paschi di Siena"
-INTESTATARIO    = "POLISENERGIA SRL"
-IBAN_LABEL      = f"{IBAN_POLIS} - {NOME_BANCA}"
-MAIL_CC         = "assistenza@polisenergia.it"
-APP_URL         = "https://operation-polisenergia.streamlit.app"
-PASSWORD_APP    = "Polis2026"
+IBAN_POLIS          = "IT80P0103015200000007044056"
+NOME_BANCA          = "Monte dei Paschi di Siena"
+INTESTATARIO        = "POLISENERGIA SRL"
+IBAN_LABEL          = f"{IBAN_POLIS} - {NOME_BANCA}"
+MAIL_CC             = "assistenza@polisenergia.it"
+APP_URL             = "https://operation-polisenergia.streamlit.app"
+OTP_SCADENZA_GIORNI = 30   # giorni di validità del link di firma
 
 # Tariffe preventivo
 TIC_DOMESTICO_LE6   = 62.30
@@ -108,7 +108,9 @@ def pulisci_valore(valore) -> str | None:
     if '.' in parte_intera and len(parte_intera.split('.')[-1]) <= 2:
         parte_intera = parte_intera.rsplit('.', 1)[0]
     solo_n = "".join(filter(str.isdigit, parte_intera.replace('.', '')))
-    return solo_n.zfill(9) if solo_n and int(solo_n) > 0 else None
+    if not solo_n or not solo_n.isdigit():
+        return None
+    return solo_n.zfill(9) if int(solo_n) > 0 else None
 
 
 def format_franchigia(p: float) -> float:
@@ -125,6 +127,23 @@ def get_smtp_config() -> dict:
         "server":   st.secrets["EMAIL_SERVER"],
         "port":     int(st.secrets["EMAIL_PORT"]),
     }
+
+
+def genera_otp() -> str:
+    """Genera un OTP a 6 cifre crittograficamente sicuro."""
+    return str(secrets.randbelow(900000) + 100000)
+
+
+def otp_scaduto(data_creazione_str: str) -> bool:
+    """
+    Restituisce True se l'OTP è scaduto (oltre OTP_SCADENZA_GIORNI giorni).
+    data_creazione_str deve essere nel formato '%d/%m/%Y %H:%M'.
+    """
+    try:
+        data_creazione = datetime.strptime(data_creazione_str, "%d/%m/%Y %H:%M")
+        return datetime.now() > data_creazione + timedelta(days=OTP_SCADENZA_GIORNI)
+    except Exception:
+        return True  # Se non riusciamo a leggere la data, consideriamo scaduto
 
 
 def invia_email(smtp: dict, to: str, subject: str, body: str,
@@ -296,15 +315,43 @@ if otp_param and codice_param:
         df['Codice_Clean'] = df['Codice'].astype(str).str.strip().str.replace('.0', '', regex=False)
 
         if cod_u not in df['Codice_Clean'].values:
-            st.error("Preventivo non trovato o link scaduto.")
+            st.error("⚠️ Link non valido o preventivo non trovato. Contatta PolisEnergia.")
             st.stop()
 
         idx            = df[df['Codice_Clean'] == cod_u].index[0]
         nome_cliente   = df.at[idx, "Cliente"]
+        stato_attuale  = str(df.at[idx, "Stato"]).strip()
+
+        # Già firmato
+        if stato_attuale == "ACCETTATO":
+            st.success("✅ Questo preventivo è già stato firmato. Grazie!")
+            st.stop()
+
+        # Verifica scadenza OTP (usa la colonna "Data" di creazione preventivo)
+        data_creazione = str(df.at[idx, "Data"]).strip()
+        # La colonna Data contiene solo GG/MM/AAAA — aggiungiamo orario fittizio 00:00
+        # Se esiste una colonna Data_OTP più precisa, usare quella
+        try:
+            data_per_scadenza = datetime.strptime(data_creazione, "%d/%m/%Y")
+            scaduto = datetime.now() > data_per_scadenza + timedelta(days=OTP_SCADENZA_GIORNI)
+        except Exception:
+            scaduto = True
+
+        if scaduto:
+            st.error(
+                f"⏰ Il link di firma è scaduto (validità {OTP_SCADENZA_GIORNI} giorni). "
+                f"Contatta PolisEnergia per ricevere un nuovo preventivo."
+            )
+            st.stop()
+
         try:
             importo_totale = float(df.at[idx, "Totale"])
         except Exception:
             importo_totale = 0.0
+
+        # Calcolo giorni rimanenti
+        data_scadenza   = data_per_scadenza + timedelta(days=OTP_SCADENZA_GIORNI)
+        giorni_rimanenti = (data_scadenza - datetime.now()).days
 
         # Box istruzioni pagamento
         st.markdown(f"""
@@ -314,6 +361,10 @@ if otp_param and codice_param:
                 <p style="color:white;font-size:1.1em;"><strong>Cliente:</strong> {nome_cliente}</p>
                 <p style="color:white;font-size:1.1em;">
                     <strong>Importo:</strong> {importo_totale:.2f} EUR
+                </p>
+                <p style="color:#ffe08a;font-size:0.9em;">
+                    ⏳ Link valido ancora per <strong>{giorni_rimanenti} giorni</strong>
+                    (scade il {data_scadenza.strftime('%d/%m/%Y')})
                 </p>
                 <hr style="border-color:rgba(255,255,255,0.3);">
                 <p style="color:white;font-weight:bold;margin-bottom:5px;">COORDINATE BANCARIE:</p>
@@ -334,7 +385,9 @@ if otp_param and codice_param:
         otp_in = st.text_input("OTP:", max_chars=6, label_visibility="collapsed")
 
         if st.button("✅ FIRMA E ACCETTA ORA"):
-            if otp_in.strip() == otp_u:
+            if not otp_in.strip():
+                st.warning("Inserisci il codice OTP prima di procedere.")
+            elif otp_in.strip() == otp_u:
                 df.at[idx, "Stato"]      = "ACCETTATO"
                 df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                 conn.update(data=df.drop(columns=['Codice_Clean']))
@@ -346,8 +399,11 @@ if otp_param and codice_param:
                         smtp=smtp,
                         to=smtp["sender"],
                         subject=f"✅ PREVENTIVO FIRMATO: {nome_cliente}",
-                        body=f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}.\n"
-                             f"Controlla il database."
+                        body=(
+                            f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}.\n"
+                            f"Data firma: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+                            f"Controlla il database."
+                        )
                     )
                 except Exception:
                     pass
@@ -355,10 +411,12 @@ if otp_param and codice_param:
                 st.success("✅ Documento firmato con successo!")
                 st.balloons()
             else:
-                st.error("❌ OTP non corretto. Riprova.")
+                st.error("❌ OTP non corretto. Riprova o contatta PolisEnergia.")
 
     except Exception as e:
-        st.error(f"Errore tecnico nel caricamento: {e}")
+        st.error("Si è verificato un errore tecnico. Contatta PolisEnergia.")
+        # Log tecnico solo in sviluppo — rimuovere in produzione:
+        st.caption(f"Dettaglio tecnico: {e}")
 
     st.stop()   # Il cliente non vede mai l'area operativa
 
@@ -372,7 +430,8 @@ if not st.session_state.autenticato:
     st.sidebar.title("🔒 Area Riservata")
     pwd = st.sidebar.text_input("Password", type="password")
     if pwd:
-        if pwd == PASSWORD_APP:
+        password_corretta = st.secrets.get("APP_PASSWORD", "")
+        if password_corretta and pwd == password_corretta:
             st.session_state.autenticato = True
             st.rerun()
         else:
@@ -386,9 +445,12 @@ if not st.session_state.autenticato:
 # ==============================================================================
 st.sidebar.success("✅ Accesso Autorizzato")
 st.sidebar.title("Navigazione")
-scelta = st.sidebar.radio("Cosa vuoi fare?", ["Autoletture", "Preventivo di Connessione"])
+scelta = st.sidebar.radio(
+    "Cosa vuoi fare?",
+    ["Autoletture", "Preventivo di Connessione", "📋 Archivio Preventivi"]
+)
 st.sidebar.divider()
-st.sidebar.caption(f"PolisEnergia Internal Tools v1.2 © {datetime.now().year}")
+st.sidebar.caption(f"PolisEnergia Internal Tools v1.3 © {datetime.now().year}")
 
 # ==============================================================================
 # 9. SEZIONE: AUTOLETTURE
@@ -665,29 +727,42 @@ elif scelta == "Preventivo di Connessione":
     with btn1:
         if st.button("📄 1. GENERA PDF E ARCHIVIA", type="primary",
                      use_container_width=True, key="btn_genera"):
-            cod = datetime.now().strftime("%y%m%d%H%M%S")
-            st.session_state.current_cod  = cod
-            st.session_state.pdf_bytes    = genera_pdf_polis({
-                "Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo,
-                "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest,
-                "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e,
-                "Totale": totale, "IBAN": IBAN_LABEL,
-            })
-            try:
-                conn = st.connection("gsheets", type=GSheetsConnection)
-                df   = conn.read(ttl=0)
-                nuova_riga = pd.DataFrame([{
-                    "Data":    datetime.now().strftime("%d/%m/%Y"),
-                    "Codice":  str(cod),
-                    "Cliente": nome,
-                    "POD":     pod,
-                    "Totale":  totale,
-                    "Stato":   "Inviato",
-                }])
-                conn.update(data=pd.concat([df, nuova_riga], ignore_index=True))
-                st.success(f"✅ Preventivo {cod} generato e archiviato!")
-            except Exception as e:
-                st.warning(f"PDF generato, ma errore salvataggio Google Sheets: {e}")
+            # Validazione campi obbligatori
+            errori = []
+            if not nome.strip():
+                errori.append("Ragione Sociale")
+            if not pod.strip():
+                errori.append("POD")
+            if not email_dest.strip():
+                errori.append("Email Cliente")
+            if p_new <= 0 and "Spostamento" not in pratica:
+                errori.append("kW Richiesti (deve essere > 0)")
+            if errori:
+                st.error(f"⚠️ Compila i campi obbligatori: {', '.join(errori)}")
+            else:
+                cod = datetime.now().strftime("%y%m%d%H%M%S")
+                st.session_state.current_cod  = cod
+                st.session_state.pdf_bytes    = genera_pdf_polis({
+                    "Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo,
+                    "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest,
+                    "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e,
+                    "Totale": totale, "IBAN": IBAN_LABEL,
+                })
+                try:
+                    conn = st.connection("gsheets", type=GSheetsConnection)
+                    df   = conn.read(ttl=0)
+                    nuova_riga = pd.DataFrame([{
+                        "Data":    datetime.now().strftime("%d/%m/%Y"),
+                        "Codice":  str(cod),
+                        "Cliente": nome,
+                        "POD":     pod,
+                        "Totale":  totale,
+                        "Stato":   "Inviato",
+                    }])
+                    conn.update(data=pd.concat([df, nuova_riga], ignore_index=True))
+                    st.success(f"✅ Preventivo {cod} generato e archiviato!")
+                except Exception as e:
+                    st.warning(f"PDF generato, ma errore salvataggio Google Sheets: {e}")
 
     with btn2:
         if 'pdf_bytes' in st.session_state and st.session_state.pdf_bytes:
@@ -709,7 +784,7 @@ elif scelta == "Preventivo di Connessione":
         st.subheader("📧 Invio Documentazione al Cliente")
 
         if 'current_otp' not in st.session_state:
-            st.session_state.current_otp = str(random.randint(100000, 999999))
+            st.session_state.current_otp = genera_otp()   # OTP crittograficamente sicuro
 
         otp      = st.session_state.current_otp
         cod      = st.session_state.current_cod
@@ -719,6 +794,7 @@ elif scelta == "Preventivo di Connessione":
             f"in allegato il preventivo n. {cod}.\n\n"
             f"Per firmare digitalmente clicca qui: {link}\n"
             f"OTP: {otp}\n\n"
+            f"Il link è valido per {OTP_SCADENZA_GIORNI} giorni.\n\n"
             f"Cordiali saluti,\nPolisEnergia srl"
         )
         corpo_mail = st.text_area("Modifica testo email:", value=testo_default, height=180)
@@ -745,7 +821,94 @@ elif scelta == "Preventivo di Connessione":
         st.info("ℹ️ Genera il PDF prima di procedere con l'invio della mail.")
 
     st.divider()
-    if st.button("🧹 PULISCI TUTTO", use_container_width=True, key="pulisci"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
+
+    # Pulisci con conferma
+    if 'conferma_pulizia' not in st.session_state:
+        st.session_state.conferma_pulizia = False
+
+    if not st.session_state.conferma_pulizia:
+        if st.button("🧹 PULISCI TUTTO", use_container_width=True, key="pulisci"):
+            st.session_state.conferma_pulizia = True
+            st.rerun()
+    else:
+        st.warning("⚠️ Sei sicuro? Tutti i dati del preventivo corrente verranno persi.")
+        c_si, c_no = st.columns(2)
+        if c_si.button("✅ Sì, pulisci", use_container_width=True, key="pulisci_si"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+        if c_no.button("❌ Annulla", use_container_width=True, key="pulisci_no"):
+            st.session_state.conferma_pulizia = False
+            st.rerun()
+
+# ==============================================================================
+# 11. SEZIONE: ARCHIVIO PREVENTIVI
+# ==============================================================================
+elif scelta == "📋 Archivio Preventivi":
+    st.title("📋 Archivio Preventivi")
+
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df   = conn.read(ttl=0)
+
+        if df.empty:
+            st.info("Nessun preventivo in archivio.")
+            st.stop()
+
+        # Calcolo stato effettivo con scadenza
+        oggi = datetime.now()
+        def stato_effettivo(row):
+            if str(row.get("Stato", "")).strip() == "ACCETTATO":
+                return "ACCETTATO"
+            try:
+                data_c = datetime.strptime(str(row["Data"]).strip(), "%d/%m/%Y")
+                if oggi > data_c + timedelta(days=OTP_SCADENZA_GIORNI):
+                    return "SCADUTO"
+            except Exception:
+                pass
+            return "INVIATO"
+
+        df["Stato Reale"] = df.apply(stato_effettivo, axis=1)
+
+        # Filtri
+        col_f1, col_f2 = st.columns([2, 1])
+        filtro_testo = col_f1.text_input("🔍 Cerca per cliente o codice", "")
+        filtro_stato = col_f2.selectbox("Filtra per stato", ["Tutti", "INVIATO", "ACCETTATO", "SCADUTO"])
+
+        df_view = df.copy()
+        if filtro_testo:
+            mask = (
+                df_view["Cliente"].astype(str).str.contains(filtro_testo, case=False, na=False) |
+                df_view["Codice"].astype(str).str.contains(filtro_testo, case=False, na=False)
+            )
+            df_view = df_view[mask]
+        if filtro_stato != "Tutti":
+            df_view = df_view[df_view["Stato Reale"] == filtro_stato]
+
+        # Badge colorati
+        def colora_stato(val):
+            colori = {
+                "ACCETTATO": "background-color: #d4edda; color: #155724; font-weight: bold;",
+                "SCADUTO":   "background-color: #f8d7da; color: #721c24; font-weight: bold;",
+                "INVIATO":   "background-color: #fff3cd; color: #856404; font-weight: bold;",
+            }
+            return colori.get(val, "")
+
+        cols_show = [c for c in ["Data", "Codice", "Cliente", "POD", "Totale", "Stato Reale", "Data Firma"]
+                     if c in df_view.columns]
+        st.dataframe(
+            df_view[cols_show].style.applymap(colora_stato, subset=["Stato Reale"]),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        # Riepilogo numerico
+        st.divider()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("🟡 Inviati",   len(df[df["Stato Reale"] == "INVIATO"]))
+        c2.metric("🟢 Accettati", len(df[df["Stato Reale"] == "ACCETTATO"]))
+        c3.metric("🔴 Scaduti",   len(df[df["Stato Reale"] == "SCADUTO"]))
+
+    except Exception as e:
+        st.error("Impossibile caricare l'archivio.")
+        st.caption(f"Dettaglio tecnico: {e}")
