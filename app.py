@@ -968,7 +968,7 @@ elif scelta == "📋 Archivio Preventivi":
         if filtro_stato != "Tutti":
             df_view = df_view[df_view["Stato Reale"] == filtro_stato]
 
-        # Badge colorati
+        # Badge colorati — .map() sostituisce .applymap() rimosso in pandas >= 2.1
         def colora_stato(val):
             colori = {
                 "ACCETTATO": "background-color: #d4edda; color: #155724; font-weight: bold;",
@@ -979,11 +979,11 @@ elif scelta == "📋 Archivio Preventivi":
 
         cols_show = [c for c in ["Data", "Codice", "Cliente", "POD", "Totale", "Stato Reale", "Data Firma"]
                      if c in df_view.columns]
-        st.dataframe(
-            df_view[cols_show].style.applymap(colora_stato, subset=["Stato Reale"]),
-            use_container_width=True,
-            hide_index=True,
-        )
+        df_show = df_view[cols_show].copy()
+        styled  = df_show.style
+        if "Stato Reale" in df_show.columns:
+            styled = styled.map(colora_stato, subset=["Stato Reale"])
+        st.dataframe(styled, use_container_width=True, hide_index=True)
 
         # Riepilogo numerico
         st.divider()
