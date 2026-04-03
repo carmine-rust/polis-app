@@ -169,131 +169,214 @@ def invia_email(smtp: dict, to: str, subject: str, body: str,
 # ==============================================================================
 
 def genera_pdf_polis(d: dict) -> bytes:
-    """Genera il PDF del preventivo e restituisce i bytes."""
-    BLUE_P     = (0, 51, 102)
-    GRAY_LIGHT = (245, 245, 245)
-    GRAY_TEXT  = (60, 60, 60)
+    """Genera il PDF del preventivo con font Lato e logo aziendale."""
+
+    # --- PALETTE ---
+    BLUE_DARK  = (0,   51, 102)   # header, intestazioni tabella, totale
+    BLUE_LIGHT = (230, 240, 250)  # sfondo riga totale
+    BLUE_MID   = (0,   90, 170)   # accento linea decorativa e bordo sinistro box
+    GRAY_BG    = (247, 248, 250)  # sfondo box cliente e righe alternate
+    GRAY_TEXT  = (60,  60,  60)   # testo corpo
+    GRAY_MUTED = (140, 140, 140)  # note, label secondari
+    WHITE      = (255, 255, 255)
+    BLACK      = (20,  20,  20)
 
     pdf = FPDF()
+    pdf.set_margins(14, 14, 14)
     pdf.add_page()
 
-    # Header blu
-    pdf.set_fill_color(*BLUE_P)
-    pdf.rect(0, 0, 210, 45, 'F')
-
+    # --- FONT LATO (con fallback su Helvetica se i file non esistono) ---
     try:
-        pdf.image("logo_polis.png", 10, 12, 35)
+        pdf.add_font("Lato", "",  "Lato-Regular.ttf", uni=True)
+        pdf.add_font("Lato", "B", "Lato-Bold.ttf",    uni=True)
+        FONT = "Lato"
     except Exception:
-        pdf.set_xy(10, 15)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font("helvetica", "B", 20)
-        pdf.cell(0, 10, "PolisEnergia srl")
+        FONT = "helvetica"
 
-    pdf.set_xy(120, 12)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("helvetica", "", 8)
-    pdf.multi_cell(
-        80, 4,
-        "Via Terre delle Risaie, 4 - 84131 Salerno (SA)\n"
-        "P.IVA 05050950657\nassistenza@polisenergia.it\nwww.polisenergia.it",
-        align='R'
-    )
+    # ── HEADER ────────────────────────────────────────────────────────────────
+    # Banda blu piena
+    pdf.set_fill_color(*BLUE_DARK)
+    pdf.rect(0, 0, 210, 48, 'F')
 
-    # Titolo e data
-    pdf.set_xy(10, 55)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("helvetica", "B", 16)
-    pdf.cell(0, 10, f"PREVENTIVO N. {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "", 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, f"Emesso il: {datetime.now().strftime('%d/%m/%Y')}",
+    # Linea decorativa sottile azzurra sotto l'header
+    pdf.set_fill_color(*BLUE_MID)
+    pdf.rect(0, 48, 210, 1.5, 'F')
+
+    # Logo (larghezza 38 mm, verticalmente centrato nella banda)
+    LOGO_W = 38
+    try:
+        pdf.image("logo_polis.png", x=14, y=7, w=LOGO_W)
+    except Exception:
+        # Fallback testuale se il logo non è disponibile
+        pdf.set_xy(14, 14)
+        pdf.set_text_color(*WHITE)
+        pdf.set_font(FONT, "B", 18)
+        pdf.cell(60, 10, "PolisEnergia")
+
+    # Dati aziendali — allineati a destra
+    pdf.set_xy(110, 10)
+    pdf.set_text_color(*WHITE)
+    pdf.set_font(FONT, "B", 8.5)
+    pdf.cell(86, 5, "POLISENERGIA SRL", align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(110)
+    pdf.set_font(FONT, "", 7.5)
+    for riga in [
+        "Via Terre delle Risaie, 4  —  84131 Salerno (SA)",
+        "P.IVA 05050950657",
+        "assistenza@polisenergia.it  |  www.polisenergia.it",
+    ]:
+        pdf.set_x(110)
+        pdf.set_text_color(200, 220, 245)   # bianco leggermente smorzato
+        pdf.cell(86, 4.5, riga, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # ── TITOLO DOCUMENTO ──────────────────────────────────────────────────────
+    pdf.set_xy(14, 57)
+    pdf.set_text_color(*BLACK)
+    pdf.set_font(FONT, "B", 17)
+    pdf.cell(0, 9, f"Preventivo n. {d['Codice']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_x(14)
+    pdf.set_font(FONT, "", 9)
+    pdf.set_text_color(*GRAY_MUTED)
+    data_str  = datetime.now().strftime("%d/%m/%Y")
+    scad_str  = (datetime.now() + timedelta(days=OTP_SCADENZA_GIORNI)).strftime("%d/%m/%Y")
+    pdf.cell(0, 5.5, f"Emesso il {data_str}  —  Valido fino al {scad_str}",
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # Dati cliente
-    pdf.ln(8)
-    pdf.set_fill_color(*GRAY_LIGHT)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 10, f"  SPETT.LE CLIENTE: {d['Cliente']}",
-             fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "", 10)
+    # ── BOX DATI CLIENTE ──────────────────────────────────────────────────────
+    pdf.ln(6)
+    box_y = pdf.get_y()
+    box_h = 20
+
+    # Sfondo grigio + bordo sinistro colorato (effetto accent)
+    pdf.set_fill_color(*GRAY_BG)
+    pdf.rect(14, box_y, 182, box_h, 'F')
+    pdf.set_fill_color(*BLUE_MID)
+    pdf.rect(14, box_y, 3, box_h, 'F')
+
+    pdf.set_xy(20, box_y + 3.5)
+    pdf.set_text_color(*GRAY_MUTED)
+    pdf.set_font(FONT, "", 7.5)
+    pdf.cell(0, 4, "SPETT.LE", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_x(20)
+    pdf.set_text_color(*BLACK)
+    pdf.set_font(FONT, "B", 10.5)
+    pdf.cell(100, 5, d['Cliente'], new_x=XPos.RIGHT, new_y=YPos.TOP)
+
+    # POD e indirizzo — colonna destra del box
+    pdf.set_xy(122, box_y + 3.5)
+    pdf.set_text_color(*GRAY_MUTED)
+    pdf.set_font(FONT, "", 7.5)
+    pdf.cell(0, 4, "POD", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(122)
     pdf.set_text_color(*GRAY_TEXT)
-    pdf.cell(0, 7, f"  POD: {d['POD']} | Indirizzo: {d['Indirizzo']}",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font(FONT, "", 9)
+    pdf.cell(74, 4.5, d['POD'], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(122)
+    pdf.set_font(FONT, "", 8)
+    pdf.set_text_color(*GRAY_MUTED)
+    pdf.cell(74, 4, d['Indirizzo'], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # Tabella prestazioni
-    pdf.ln(10)
-    pdf.set_draw_color(220, 220, 220)
+    # ── TABELLA VOCI ──────────────────────────────────────────────────────────
+    pdf.ln(9)
+    pdf.set_draw_color(220, 225, 232)
     pdf.set_line_width(0.2)
-    pdf.set_font("helvetica", "B", 10)
-    pdf.set_fill_color(*BLUE_P)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(140, 10, "  DESCRIZIONE PRESTAZIONE", border='B', fill=True)
-    pdf.cell(50, 10, "IMPORTO  ", border='B', fill=True, align='R',
+
+    # Intestazione tabella
+    pdf.set_fill_color(*BLUE_DARK)
+    pdf.set_text_color(*WHITE)
+    pdf.set_font(FONT, "B", 9)
+    pdf.cell(134, 9, "  Descrizione prestazione", border=0, fill=True)
+    pdf.cell(48,  9, "Importo", border=0, fill=True, align='R',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    pdf.set_text_color(*GRAY_TEXT)
     voci = [
         ("Quota Tecnica",           d['C_Tec']),
         ("Oneri Amministrativi",    d['Oneri']),
         ("Oneri Gestione Pratica",  d['Gestione']),
     ]
-    fill = False
-    for voce, importo in voci:
-        pdf.set_fill_color(250, 250, 250) if fill else pdf.set_fill_color(255, 255, 255)
-        pdf.set_font("helvetica", "", 10)
-        pdf.cell(140, 9, f"  {voce}", border='B', fill=True)
-        pdf.cell(50, 9, f"{importo:.2f} EUR  ", border='B', fill=True, align='R',
+    for i, (voce, importo) in enumerate(voci):
+        bg = GRAY_BG if i % 2 == 0 else WHITE
+        pdf.set_fill_color(*bg)
+        pdf.set_text_color(*GRAY_TEXT)
+        pdf.set_font(FONT, "", 9.5)
+        pdf.cell(134, 9, f"  {voce}", border='B', fill=True)
+        pdf.cell(48,  9, f"{importo:.2f} EUR", border='B', fill=True, align='R',
                  new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        fill = not fill
 
-    # Totali
-    pdf.ln(3)
-    pdf.set_font("helvetica", "", 10)
-    pdf.cell(140, 8, "Totale Imponibile", align='R')
-    pdf.cell(50, 8, f"{d['Imponibile']:.2f} EUR  ", align='R',
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(140, 8, f"IVA ({d['IVA_Perc']}%)", align='R')
-    pdf.cell(50, 8, f"{d['IVA_Euro']:.2f} EUR  ", align='R',
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    # ── SUBTOTALI ─────────────────────────────────────────────────────────────
     pdf.ln(2)
-    pdf.set_font("helvetica", "B", 12)
-    pdf.set_text_color(*BLUE_P)
-    pdf.set_fill_color(230, 240, 250)
-    pdf.cell(140, 12, "  TOTALE DA CORRISPONDERE", fill=True)
-    pdf.cell(50, 12, f"{d['Totale']:.2f} EUR  ", fill=True, align='R',
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Pagamento
-    pdf.ln(10)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(0, 6, "MODALITA' DI PAGAMENTO:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "", 9)
-    pdf.cell(0, 5, f"Bonifico Bancario IBAN: {d['IBAN']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("helvetica", "I", 9)
-    pdf.cell(0, 5, f"CAUSALE OBBLIGATORIA: Accettazione Preventivo {d['Codice']}",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Note a piè di pagina
-    pdf.set_y(-65)
-    pdf.set_font("helvetica", "", 7)
-    pdf.set_text_color(120, 120, 120)
-    for riga in [
-        "L'esecuzione della prestazione è subordinata al verificarsi delle seguenti condizioni:",
-        "- conferma della proposta pervenuta entro 30 gg dalla presente richiesta;",
-        "- comunicazione dell'avvenuto completamento di eventuali opere/autorizzazioni a cura del cliente finale.",
-        "Il presente documento deve essere inviato firmato a: assistenza@polisenergia.it",
+    pdf.set_font(FONT, "", 9)
+    pdf.set_text_color(*GRAY_MUTED)
+    for label, valore in [
+        ("Totale imponibile", f"{d['Imponibile']:.2f} EUR"),
+        (f"IVA ({d['IVA_Perc']}%)",    f"{d['IVA_Euro']:.2f} EUR"),
     ]:
-        pdf.cell(0, 3.5, riga, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(134, 7, label, align='R')
+        pdf.cell(48,  7, valore, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # Riga firma
-    pdf.set_y(-35)
-    pdf.set_font("helvetica", "B", 9)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 5, "Firma per Accettazione Cliente", align='R',
+    # Riga totale finale — evidenziata
+    pdf.ln(1)
+    pdf.set_fill_color(*BLUE_LIGHT)
+    pdf.set_text_color(*BLUE_DARK)
+    pdf.set_font(FONT, "B", 11)
+    pdf.cell(134, 12, "  Totale da corrispondere", fill=True)
+    pdf.cell(48,  12, f"{d['Totale']:.2f} EUR", fill=True, align='R',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.line(140, pdf.get_y() + 15, 200, pdf.get_y() + 15)
+
+    # ── SEZIONE PAGAMENTO ─────────────────────────────────────────────────────
+    pdf.ln(10)
+    # Piccola label categoria
+    pdf.set_font(FONT, "B", 8)
+    pdf.set_text_color(*BLUE_MID)
+    pdf.cell(0, 5, "MODALITA' DI PAGAMENTO", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    # Linea sottile separatrice
+    pdf.set_draw_color(*BLUE_MID)
+    pdf.set_line_width(0.4)
+    pdf.line(14, pdf.get_y(), 196, pdf.get_y())
+    pdf.ln(3)
+
+    pdf.set_text_color(*GRAY_TEXT)
+    pdf.set_font(FONT, "", 9.5)
+    pdf.cell(30, 5.5, "Bonifico bancario")
+    pdf.set_font(FONT, "B", 9.5)
+    pdf.cell(0, 5.5, f"IBAN: {d['IBAN']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_font(FONT, "", 9)
+    pdf.set_text_color(*GRAY_MUTED)
+    pdf.cell(30, 5, "Causale:")
+    pdf.set_text_color(*GRAY_TEXT)
+    pdf.cell(0, 5, f"Accettazione Preventivo {d['Codice']} — {d.get('Cliente', '')}",
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # ── FIRMA ─────────────────────────────────────────────────────────────────
+    pdf.ln(8)
+    pdf.set_font(FONT, "", 8.5)
+    pdf.set_text_color(*GRAY_MUTED)
+    pdf.cell(96, 5, "Per accettazione (timbro e firma leggibile):", align='L')
+    pdf.cell(86, 5, "Data:", align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(10)
+    pdf.set_draw_color(*GRAY_MUTED)
+    pdf.set_line_width(0.3)
+    pdf.line(14,  pdf.get_y(), 106, pdf.get_y())   # linea firma
+    pdf.line(112, pdf.get_y(), 160, pdf.get_y())   # linea data
+
+    # ── FOOTER ────────────────────────────────────────────────────────────────
+    pdf.set_y(-28)
+    # Banda blu piena
+    pdf.set_fill_color(*BLUE_DARK)
+    pdf.rect(0, pdf.get_y(), 210, 28, 'F')
+    pdf.set_x(14)
+    pdf.set_text_color(200, 220, 245)
+    pdf.set_font(FONT, "", 6.5)
+    pdf.set_line_width(0)
+    note = (
+        "L'esecuzione della prestazione e' subordinata a: conferma della proposta entro 30 gg e "
+        "completamento di eventuali opere/autorizzazioni a cura del cliente.  "
+        "Inviare il documento firmato a assistenza@polisenergia.it"
+    )
+    pdf.multi_cell(182, 4, note, align='L')
 
     return bytes(pdf.output())
 
