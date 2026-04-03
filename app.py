@@ -522,7 +522,7 @@ elif scelta == "Preventivo di Connessione":
     SENDER_PASSWORD = st.secrets["EMAIL_PASSWORD"]
     SMTP_SERVER = st.secrets["EMAIL_SERVER"]
     SMTP_PORT = int(st.secrets["EMAIL_PORT"])
-    MAIL_CC = "amministrazione@polisenergia.it"
+    MAIL_CC = "assistenza@polisenergia.it"
 
     # Inizializzazione variabili per evitare errori di mancata definizione
     p_att, p_new, c_dist, delta, tar = 0.0, 0.0, 0.0, 0.0, 0.0
