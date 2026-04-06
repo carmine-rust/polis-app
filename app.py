@@ -744,10 +744,11 @@ st.sidebar.success("✅ Accesso Autorizzato")
 st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio(
     "Cosa vuoi fare?",
-    ["Autoletture", "Preventivo di Connessione", "📋 Archivio Preventivi"]
+    ["Autoletture", "Preventivo di Connessione", "📋 Archivio Preventivi",
+     "📊 Statistiche", "⚙️ Impostazioni"]
 )
 st.sidebar.divider()
-st.sidebar.caption(f"PolisEnergia Internal Tools v1.3 © {datetime.now().year}")
+st.sidebar.caption(f"PolisEnergia Internal Tools v1.4 © {datetime.now().year}")
 
 # ==============================================================================
 # 9. SEZIONE: AUTOLETTURE
@@ -1039,6 +1040,32 @@ elif scelta == "Preventivo di Connessione":
             else:
                 cod = datetime.now().strftime("%y%m%d%H%M%S")
                 st.session_state.current_cod  = cod
+
+                # --- Controllo duplicati POD ---
+                try:
+                    conn_check = st.connection("gsheets", type=GSheetsConnection)
+                    df_check   = conn_check.read(ttl=0)
+                    if not df_check.empty and "POD" in df_check.columns:
+                        attivi = df_check[
+                            (df_check["POD"].astype(str).str.strip() == pod.strip()) &
+                            (df_check["Stato"].astype(str).str.strip().isin(["Inviato", "INVIATO"]))
+                        ]
+                        if not attivi.empty:
+                            cod_esistente = attivi.iloc[-1]["Codice"]
+                            st.warning(
+                                f"⚠️ Esiste già un preventivo attivo per il POD **{pod}** "
+                                f"(codice: `{cod_esistente}`). "
+                                f"Il nuovo sarà archiviato come revisione."
+                            )
+                            # Storico versioni: il nuovo codice porta il riferimento al precedente
+                            cod_padre = str(cod_esistente).strip()
+                        else:
+                            cod_padre = ""
+                    else:
+                        cod_padre = ""
+                except Exception:
+                    cod_padre = ""
+
                 dati_preventivo = {
                     "Codice": cod, "Cliente": nome, "POD": pod, "Indirizzo": indirizzo,
                     "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest,
@@ -1048,7 +1075,7 @@ elif scelta == "Preventivo di Connessione":
                 st.session_state.pdf_bytes = genera_pdf_polis(dati_preventivo)
                 html_preventivo            = genera_html_polis(dati_preventivo)
 
-                # Caricamento HTML su Drive (in background, silenzioso se fallisce)
+                # Caricamento HTML su Drive
                 link_html = ""
                 try:
                     with st.spinner("Archiviazione su Drive..."):
@@ -1065,10 +1092,12 @@ elif scelta == "Preventivo di Connessione":
                     nuova_riga = pd.DataFrame([{
                         "Data":      datetime.now().strftime("%d/%m/%Y"),
                         "Codice":    str(cod),
+                        "Versione_Di": cod_padre,       # riferimento al preventivo sostituito
                         "Cliente":   nome,
                         "POD":       pod,
                         "Totale":    totale,
                         "Stato":     "Inviato",
+                        "Email":     email_dest,        # salviamo l'email per il reinvio
                         "Link_HTML": link_html,
                     }])
                     conn.update(data=pd.concat([df, nuova_riga], ignore_index=True))
@@ -1096,18 +1125,25 @@ elif scelta == "Preventivo di Connessione":
         st.subheader("📧 Invio Documentazione al Cliente")
 
         if 'current_otp' not in st.session_state:
-            st.session_state.current_otp = genera_otp()   # OTP crittograficamente sicuro
+            st.session_state.current_otp = genera_otp()
 
-        otp      = st.session_state.current_otp
-        cod      = st.session_state.current_cod
-        link     = f"{APP_URL}/?codice={cod}&otp={otp}"
-        testo_default = (
-            f"Spett.le {nome},\n"
-            f"in allegato il preventivo n. {cod}.\n\n"
-            f"Per firmare digitalmente clicca qui: {link}\n"
-            f"OTP: {otp}\n\n"
-            f"Il link è valido per {OTP_SCADENZA_GIORNI} giorni.\n\n"
-            f"Cordiali saluti,\nPolisEnergia srl"
+        otp  = st.session_state.current_otp
+        cod  = st.session_state.current_cod
+        link = f"{APP_URL}/?codice={cod}&otp={otp}"
+
+        # Template da impostazioni (con fallback al default)
+        template = st.session_state.get("email_template",
+            "Spett.le {nome},\n"
+            "in allegato il preventivo n. {codice}.\n\n"
+            "Per firmare digitalmente clicca qui: {link}\n"
+            "OTP: {otp}\n\n"
+            "Il link è valido per {giorni} giorni.\n\n"
+            "Cordiali saluti,\nPolisEnergia srl"
+        )
+        testo_default = template.format(
+            nome=nome, codice=cod, link=link,
+            otp=otp, giorni=OTP_SCADENZA_GIORNI,
+            totale=f"{totale:.2f}", pod=pod,
         )
         corpo_mail = st.text_area("Modifica testo email:", value=testo_default, height=180)
 
@@ -1167,7 +1203,7 @@ elif scelta == "📋 Archivio Preventivi":
             st.info("Nessun preventivo in archivio.")
             st.stop()
 
-        # Calcolo stato effettivo con scadenza
+        # Stato effettivo con scadenza
         oggi = datetime.now()
         def stato_effettivo(row):
             if str(row.get("Stato", "")).strip() == "ACCETTATO":
@@ -1182,77 +1218,333 @@ elif scelta == "📋 Archivio Preventivi":
 
         df["Stato Reale"] = df.apply(stato_effettivo, axis=1)
 
-        # Filtri
+        # ── FILTRI ────────────────────────────────────────────────────────────
         col_f1, col_f2 = st.columns([2, 1])
-        filtro_testo = col_f1.text_input("🔍 Cerca per cliente o codice", "")
-        filtro_stato = col_f2.selectbox("Filtra per stato", ["Tutti", "INVIATO", "ACCETTATO", "SCADUTO"])
+        filtro_testo = col_f1.text_input("🔍 Cerca per cliente, codice o POD", "")
+        filtro_stato = col_f2.selectbox("Stato", ["Tutti", "INVIATO", "ACCETTATO", "SCADUTO"])
 
         df_view = df.copy()
         if filtro_testo:
             mask = (
                 df_view["Cliente"].astype(str).str.contains(filtro_testo, case=False, na=False) |
-                df_view["Codice"].astype(str).str.contains(filtro_testo, case=False, na=False)
+                df_view["Codice"].astype(str).str.contains(filtro_testo, case=False, na=False)  |
+                df_view["POD"].astype(str).str.contains(filtro_testo, case=False, na=False)
             )
             df_view = df_view[mask]
         if filtro_stato != "Tutti":
             df_view = df_view[df_view["Stato Reale"] == filtro_stato]
 
-        cols_show = [c for c in ["Data", "Codice", "Cliente", "POD", "Totale", "Stato Reale", "Data Firma"]
+        # ── TABELLA ───────────────────────────────────────────────────────────
+        cols_show = [c for c in ["Data", "Codice", "Versione_Di", "Cliente", "POD",
+                                  "Totale", "Stato Reale", "Data Firma"]
                      if c in df_view.columns]
         df_show = df_view[cols_show].copy()
 
-        # Badge emoji sullo stato
         EMOJI_STATO = {"ACCETTATO": "🟢 ACCETTATO", "SCADUTO": "🔴 SCADUTO", "INVIATO": "🟡 INVIATO"}
         if "Stato Reale" in df_show.columns:
             df_show["Stato Reale"] = df_show["Stato Reale"].map(
                 lambda v: EMOJI_STATO.get(str(v).strip(), str(v))
             )
 
-        # Colonna Link_HTML → usata da LinkColumn per rendere il Codice cliccabile
         ha_link = "Link_HTML" in df_view.columns
+        col_cfg = {
+            "Data":         st.column_config.TextColumn("Data",        width="small"),
+            "Codice":       st.column_config.TextColumn("Codice",      width="medium"),
+            "Versione_Di":  st.column_config.TextColumn("Revisione di",width="medium"),
+            "Cliente":      st.column_config.TextColumn("Cliente",     width="large"),
+            "POD":          st.column_config.TextColumn("POD",         width="medium"),
+            "Totale":       st.column_config.NumberColumn("Totale €",  format="%.2f", width="small"),
+            "Stato Reale":  st.column_config.TextColumn("Stato",       width="medium"),
+            "Data Firma":   st.column_config.TextColumn("Firmato il",  width="small"),
+        }
         if ha_link:
             df_show["Link_HTML"] = df_view["Link_HTML"].fillna("").values
-
-        # Configurazione colonne
-        col_cfg = {
-            "Data":       st.column_config.TextColumn("Data",     width="small"),
-            "Codice":     st.column_config.TextColumn("Codice",   width="medium"),
-            "Cliente":    st.column_config.TextColumn("Cliente",  width="large"),
-            "POD":        st.column_config.TextColumn("POD",      width="medium"),
-            "Totale":     st.column_config.NumberColumn("Totale €", format="%.2f", width="small"),
-            "Stato Reale":st.column_config.TextColumn("Stato",    width="medium"),
-            "Data Firma": st.column_config.TextColumn("Firmato il", width="small"),
-        }
-
-        # Se esiste la colonna Link_HTML, sostituiamo Codice con una LinkColumn
-        if ha_link:
             col_cfg["Codice"] = st.column_config.LinkColumn(
                 "Preventivo",
-                display_text=r"(.+)",   # mostra il codice come testo del link
+                display_text=r"(.+)",
                 help="Clicca per aprire il preventivo HTML su Drive",
                 width="medium",
             )
-            # La LinkColumn usa il valore della cella come URL:
-            # quindi mettiamo il link nella colonna Codice e teniamo Link_HTML nascosta
             df_show["Codice"] = df_show["Link_HTML"].where(
                 df_show["Link_HTML"] != "", df_show["Codice"]
             )
             df_show = df_show.drop(columns=["Link_HTML"])
 
-        st.dataframe(
-            df_show,
+        st.dataframe(df_show, use_container_width=True, hide_index=True, column_config=col_cfg)
+
+        # ── EXPORT EXCEL ──────────────────────────────────────────────────────
+        buf_xls = io.BytesIO()
+        export_cols = [c for c in ["Data", "Codice", "Versione_Di", "Cliente", "POD",
+                                    "Totale", "Stato Reale", "Email", "Data Firma"]
+                       if c in df_view.columns]
+        df_view[export_cols].to_excel(buf_xls, index=False, engine="openpyxl")
+        buf_xls.seek(0)
+        st.download_button(
+            label="📊 Esporta in Excel",
+            data=buf_xls,
+            file_name=f"Archivio_Preventivi_{datetime.now().strftime('%d%m%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
-            hide_index=True,
-            column_config=col_cfg,
         )
 
-        # Riepilogo numerico
+        # ── METRICHE ──────────────────────────────────────────────────────────
         st.divider()
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("🟡 Inviati",   len(df[df["Stato Reale"] == "INVIATO"]))
         c2.metric("🟢 Accettati", len(df[df["Stato Reale"] == "ACCETTATO"]))
         c3.metric("🔴 Scaduti",   len(df[df["Stato Reale"] == "SCADUTO"]))
+        try:
+            c4.metric("💶 Valore accettato",
+                      f"{df[df['Stato Reale'] == 'ACCETTATO']['Totale'].astype(float).sum():.2f} €")
+        except Exception:
+            pass
+
+        # ── REINVIO EMAIL / NUOVO OTP ─────────────────────────────────────────
+        st.divider()
+        st.subheader("📨 Reinvia email a cliente")
+
+        reinviabili = df_view[
+            df_view["Stato Reale"].isin(["INVIATO", "SCADUTO"])
+        ]["Codice"].astype(str).tolist()
+
+        if not reinviabili:
+            st.info("Nessun preventivo da reinviare nei risultati correnti.")
+        else:
+            cod_reinvio = st.selectbox("Seleziona preventivo:", reinviabili, key="sel_reinvio")
+            row_r = df[df["Codice"].astype(str) == cod_reinvio]
+
+            if not row_r.empty:
+                r = row_r.iloc[0]
+                nome_r  = str(r.get("Cliente", ""))
+                email_r = str(r.get("Email", ""))
+                pod_r   = str(r.get("POD", ""))
+
+                col_r1, col_r2 = st.columns(2)
+                email_reinvio = col_r1.text_input(
+                    "Email destinatario",
+                    value=email_r if email_r not in {"", "nan"} else "",
+                    key="email_reinvio"
+                )
+
+                # Genera nuovo OTP per questo reinvio
+                otp_key = f"otp_reinvio_{cod_reinvio}"
+                if otp_key not in st.session_state:
+                    st.session_state[otp_key] = genera_otp()
+                nuovo_otp  = st.session_state[otp_key]
+                link_reinvio = f"{APP_URL}/?codice={cod_reinvio}&otp={nuovo_otp}"
+
+                template = st.session_state.get("email_template",
+                    "Spett.le {nome},\n"
+                    "in allegato il preventivo n. {codice}.\n\n"
+                    "Per firmare digitalmente clicca qui: {link}\n"
+                    "OTP: {otp}\n\n"
+                    "Il link è valido per {giorni} giorni.\n\n"
+                    "Cordiali saluti,\nPolisEnergia srl"
+                )
+                try:
+                    testo_r = template.format(
+                        nome=nome_r, codice=cod_reinvio, link=link_reinvio,
+                        otp=nuovo_otp, giorni=OTP_SCADENZA_GIORNI,
+                        totale=str(r.get("Totale", "")), pod=pod_r,
+                    )
+                except Exception:
+                    testo_r = (
+                        f"Spett.le {nome_r},\nin allegato il preventivo n. {cod_reinvio}.\n\n"
+                        f"Firma qui: {link_reinvio}\nOTP: {nuovo_otp}\n\n"
+                        f"Cordiali saluti,\nPolisEnergia srl"
+                    )
+                corpo_r = st.text_area("Testo email:", value=testo_r, height=160, key="corpo_reinvio")
+
+                if col_r2.button("🚀 REINVIA EMAIL", use_container_width=True, key="btn_reinvio"):
+                    if not email_reinvio.strip():
+                        st.error("Inserisci l'indirizzo email.")
+                    else:
+                        try:
+                            with st.spinner("Invio in corso..."):
+                                smtp = get_smtp_config()
+                                invia_email(
+                                    smtp=smtp,
+                                    to=email_reinvio.strip(),
+                                    subject=f"Preventivo PolisEnergia n. {cod_reinvio}",
+                                    body=corpo_r,
+                                )
+                            # Aggiorna OTP nel Sheet
+                            idx_r = df[df["Codice"].astype(str) == cod_reinvio].index[0]
+                            df.at[idx_r, "Stato"] = "Inviato"
+                            if "Email" in df.columns:
+                                df.at[idx_r, "Email"] = email_reinvio.strip()
+                            conn.update(data=df.drop(columns=["Stato Reale"], errors="ignore"))
+                            # Reset OTP in session per forzare nuovo codice al prossimo reinvio
+                            del st.session_state[otp_key]
+                            st.success(f"✅ Email reinviata con nuovo OTP a {email_reinvio}!")
+                        except Exception as e:
+                            st.error(f"Errore invio: {e}")
+
+        # ── STORICO VERSIONI ──────────────────────────────────────────────────
+        if "Versione_Di" in df.columns and df["Versione_Di"].notna().any():
+            st.divider()
+            st.subheader("🔄 Storico revisioni")
+            pod_con_rev = df[df["Versione_Di"].astype(str).str.strip() != ""]["POD"].unique()
+            if len(pod_con_rev):
+                pod_sel = st.selectbox("POD:", pod_con_rev, key="pod_storico")
+                catena = df[df["POD"].astype(str) == pod_sel][
+                    ["Data", "Codice", "Versione_Di", "Totale", "Stato Reale"]
+                ].sort_values("Data")
+                st.dataframe(catena, use_container_width=True, hide_index=True)
 
     except Exception as e:
         st.error("Impossibile caricare l'archivio.")
         st.caption(f"Dettaglio tecnico: {e}")
+
+# ==============================================================================
+# 12. SEZIONE: STATISTICHE
+# ==============================================================================
+elif scelta == "📊 Statistiche":
+    st.title("📊 Statistiche")
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df   = conn.read(ttl=0)
+
+        if df.empty:
+            st.info("Nessun dato disponibile.")
+            st.stop()
+
+        oggi = datetime.now()
+        def stato_eff(row):
+            if str(row.get("Stato", "")).strip() == "ACCETTATO":
+                return "ACCETTATO"
+            try:
+                data_c = datetime.strptime(str(row["Data"]).strip(), "%d/%m/%Y")
+                if oggi > data_c + timedelta(days=OTP_SCADENZA_GIORNI):
+                    return "SCADUTO"
+            except Exception:
+                pass
+            return "INVIATO"
+
+        df["Stato Reale"] = df.apply(stato_eff, axis=1)
+        df["Totale_N"] = pd.to_numeric(df["Totale"], errors="coerce").fillna(0)
+
+        # Prova a estrarre mese/anno dalla colonna Data
+        try:
+            df["_Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors="coerce")
+            df["Mese"]  = df["_Data"].dt.to_period("M").astype(str)
+        except Exception:
+            df["Mese"] = "N/D"
+
+        # ── KPI ───────────────────────────────────────────────────────────────
+        k1, k2, k3, k4 = st.columns(4)
+        n_tot  = len(df)
+        n_acc  = len(df[df["Stato Reale"] == "ACCETTATO"])
+        val_acc = df[df["Stato Reale"] == "ACCETTATO"]["Totale_N"].sum()
+        tasso   = round(n_acc / n_tot * 100, 1) if n_tot else 0
+        k1.metric("Preventivi totali", n_tot)
+        k2.metric("Accettati",         n_acc)
+        k3.metric("Tasso accettazione", f"{tasso}%")
+        k4.metric("Valore accettato",  f"{val_acc:.2f} €")
+
+        st.divider()
+
+        # ── GRAFICI ───────────────────────────────────────────────────────────
+        col_g1, col_g2 = st.columns(2)
+
+        with col_g1:
+            st.subheader("Preventivi per mese")
+            mese_grp = (df.groupby("Mese")
+                          .size()
+                          .reset_index(name="Conteggio")
+                          .sort_values("Mese"))
+            st.bar_chart(mese_grp.set_index("Mese")["Conteggio"])
+
+        with col_g2:
+            st.subheader("Valore accettato per mese (€)")
+            val_grp = (df[df["Stato Reale"] == "ACCETTATO"]
+                         .groupby("Mese")["Totale_N"]
+                         .sum()
+                         .reset_index(name="Valore")
+                         .sort_values("Mese"))
+            if not val_grp.empty:
+                st.bar_chart(val_grp.set_index("Mese")["Valore"])
+            else:
+                st.info("Nessun preventivo accettato.")
+
+        st.divider()
+        st.subheader("Distribuzione stati")
+        stato_grp = df["Stato Reale"].value_counts().reset_index()
+        stato_grp.columns = ["Stato", "Conteggio"]
+        st.bar_chart(stato_grp.set_index("Stato")["Conteggio"])
+
+    except Exception as e:
+        st.error("Impossibile caricare le statistiche.")
+        st.caption(f"Dettaglio tecnico: {e}")
+
+# ==============================================================================
+# 13. SEZIONE: IMPOSTAZIONI (template email)
+# ==============================================================================
+elif scelta == "⚙️ Impostazioni":
+    st.title("⚙️ Impostazioni")
+
+    st.subheader("📝 Template Email")
+    st.markdown(
+        "Personalizza il testo della mail inviata ai clienti. "
+        "Usa le variabili tra `{` `}` per inserire i dati dinamici:"
+    )
+    st.code(
+        "{nome}  →  Ragione Sociale cliente\n"
+        "{codice}  →  Numero preventivo\n"
+        "{link}  →  Link di firma\n"
+        "{otp}  →  Codice OTP\n"
+        "{giorni}  →  Giorni di validità\n"
+        "{totale}  →  Importo totale\n"
+        "{pod}  →  Codice POD",
+        language=None
+    )
+
+    default_template = (
+        "Spett.le {nome},\n"
+        "in allegato il preventivo n. {codice}.\n\n"
+        "Per firmare digitalmente clicca qui: {link}\n"
+        "OTP: {otp}\n\n"
+        "Il link è valido per {giorni} giorni.\n\n"
+        "Cordiali saluti,\nPolisEnergia srl"
+    )
+    template_attuale = st.session_state.get("email_template", default_template)
+    nuovo_template   = st.text_area(
+        "Template email:",
+        value=template_attuale,
+        height=220,
+        key="input_template"
+    )
+
+    col_s1, col_s2 = st.columns(2)
+    if col_s1.button("💾 Salva template", use_container_width=True):
+        # Verifica che le variabili obbligatorie siano presenti
+        mancanti = [v for v in ["{nome}", "{codice}", "{link}", "{otp}"]
+                    if v not in nuovo_template]
+        if mancanti:
+            st.error(f"⚠️ Il template deve contenere: {', '.join(mancanti)}")
+        else:
+            st.session_state["email_template"] = nuovo_template
+            st.success("✅ Template salvato per questa sessione!")
+            st.info("ℹ️ Il template viene salvato in sessione — verrà reimpostato al riavvio dell'app.")
+
+    if col_s2.button("↩️ Ripristina default", use_container_width=True):
+        st.session_state["email_template"] = default_template
+        st.success("Template ripristinato.")
+        st.rerun()
+
+    # Anteprima con dati fittizi
+    st.divider()
+    st.subheader("👁 Anteprima")
+    try:
+        anteprima = nuovo_template.format(
+            nome="ROSSI MARIO SRL",
+            codice="260403143022",
+            link=f"{APP_URL}/?codice=260403143022&otp=123456",
+            otp="123456",
+            giorni=OTP_SCADENZA_GIORNI,
+            totale="414.40",
+            pod="IT001E12345678",
+        )
+        st.text(anteprima)
+    except KeyError as e:
+        st.warning(f"Variabile non riconosciuta nel template: {e}")
