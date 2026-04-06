@@ -430,6 +430,15 @@ def genera_html_polis(d: dict) -> str:
     """Genera il preventivo come stringa HTML standalone (~10KB)."""
     data_str = datetime.now().strftime("%d/%m/%Y")
     scad_str = (datetime.now() + timedelta(days=OTP_SCADENZA_GIORNI)).strftime("%d/%m/%Y")
+
+    # Logo incorporato come Base64 — nessuna dipendenza esterna
+    logo_tag = '<div class="header-brand">PolisEnergia srl</div>'  # fallback testo
+    try:
+        with open("logo_polis.png", "rb") as f:
+            logo_b64 = _b64.b64encode(f.read()).decode("utf-8")
+        logo_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height:40px;max-width:160px;object-fit:contain;" alt="PolisEnergia">'
+    except Exception:
+        pass  # fallback testo già impostato
     voci = [
         ("Quota Tecnica",          d['C_Tec']),
         ("Oneri Amministrativi",   d['Oneri']),
@@ -490,7 +499,7 @@ def genera_html_polis(d: dict) -> str:
 <body>
 <div class="page">
   <div class="header">
-    <div class="header-brand">PolisEnergia srl</div>
+    {logo_tag}
     <div class="header-info">
       <strong>POLISENERGIA SRL</strong>
       Via Terre delle Risaie, 4 — 84131 Salerno (SA)<br>
