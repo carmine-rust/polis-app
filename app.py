@@ -1257,7 +1257,7 @@ elif scelta == "Preventivo di Connessione":
             errori = []
             if not nome.strip():
                 errori.append("Ragione Sociale")
-            if not pod.strip():
+            if not pod.strip() and "Nuova" not in pratica:
                 errori.append("POD")
             if not email_dest.strip():
                 errori.append("Email Cliente")
