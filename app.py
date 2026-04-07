@@ -696,7 +696,7 @@ st.sidebar.title("Navigazione")
 scelta = st.sidebar.radio(
     "Cosa vuoi fare?",
     ["Autoletture", "Preventivo di Connessione", "📋 Archivio Preventivi",
-     "💰 Pagamenti", "📊 Statistiche", "⚙️ Impostazioni"]
+     "📊 Statistiche", "⚙️ Impostazioni"]
 )
 st.sidebar.divider()
 st.sidebar.caption(f"PolisEnergia Internal Tools v1.4 © {datetime.now().year}")
@@ -1528,334 +1528,9 @@ render();
         st.error("Impossibile caricare l'archivio.")
         st.caption(f"Dettaglio tecnico: {e}")
 
-# ==============================================================================
-# 12. SEZIONE: PAGAMENTI
-# ==============================================================================
-elif scelta == "💰 Pagamenti":
-    st.title("💰 Gestione Pagamenti")
-
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df   = conn.read(ttl=0)
-
-        if df.empty:
-            st.info("Nessun preventivo in archivio.")
-            st.stop()
-
-        # Stato effettivo
-        oggi = datetime.now()
-        def stato_pag(row):
-            s = str(row.get("Stato", "")).strip().upper()
-            if s == "PAGATO":   return "PAGATO"
-            if s == "ACCETTATO": return "ACCETTATO"
-            try:
-                data_c = datetime.strptime(str(row["Data"]).strip(), "%d/%m/%Y")
-                if oggi > data_c + timedelta(days=OTP_SCADENZA_GIORNI):
-                    return "SCADUTO"
-            except Exception:
-                pass
-            return "INVIATO"
-
-        df["Stato Reale"] = df.apply(stato_pag, axis=1)
-
-        def to_float(v):
-            try: return float(str(v).replace(",", "."))
-            except: return 0.0
-
-        df["Totale_N"]   = df["Totale"].apply(to_float)
-        df["Gestione_N"] = df.get("Gestione", pd.Series([0.0]*len(df))).apply(to_float)
-        df["Oneri_N"]    = df.get("Oneri",    pd.Series([ONERI_ISTRUTTORIA]*len(df))).apply(to_float)
-        df["Margine_N"]  = df["Gestione_N"] + df["Oneri_N"]
-
-        # ── KPI PAGAMENTI ──────────────────────────────────────────────────────
-        pagati   = df[df["Stato Reale"] == "PAGATO"]
-        accettati = df[df["Stato Reale"] == "ACCETTATO"]
-        n_pag    = len(pagati)
-        n_acc    = len(accettati)
-        inc_tot  = pagati["Totale_N"].sum()
-        marg_tot = pagati["Margine_N"].sum()
-        marg_pct = round(marg_tot / inc_tot * 100, 1) if inc_tot else 0
-
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("💶 Incassato",       f"{inc_tot:,.2f} €")
-        k2.metric("📈 Margine reale",    f"{marg_tot:,.2f} €")
-        k3.metric("% Margine",           f"{marg_pct}%")
-        k4.metric("In attesa pagamento", n_acc)
-
-        st.divider()
-
-        # ── MATCHING FATTURE ───────────────────────────────────────────────────
-        st.subheader("📂 Carica file fatture per matching")
-        st.caption("Carica l'export del tuo gestionale. Il matching avviene per importo.")
-
-        file_fatt = st.file_uploader("File fatture (Excel o CSV)", type=["xlsx", "xls", "csv"])
-
-        if file_fatt:
-            try:
-                if file_fatt.name.endswith(".csv"):
-                    df_fatt = pd.read_csv(file_fatt, sep=None, engine="python",
-                                          encoding="utf-8-sig", dtype=str)
-                else:
-                    df_fatt = pd.read_excel(file_fatt, dtype=str)
-
-                df_fatt.columns = [c.strip() for c in df_fatt.columns]
-
-                # ── Identificazione colonne nel file fatture ───────────────────
-                def trova_col(df, keywords):
-                    for c in df.columns:
-                        if any(k in c.upper() for k in keywords):
-                            return c
-                    return None
-
-                col_pod  = trova_col(df_fatt, ["POD"])
-                col_imp  = trova_col(df_fatt, ["IMPORTO", "IMPORT", "TOTAL", "AMOUNT"])
-                col_cli  = trova_col(df_fatt, ["CLIENTE", "CLIENT", "RAGIO", "DENOMINAZ", "NOME"])
-                col_dpag = trova_col(df_fatt, ["DATA PAGAMENTO", "DATA PAG", "PAGAMENTO"])
-                col_num  = trova_col(df_fatt, ["NUMERO", "NUM. FATT", "N. FATT", "FATTURA"])
-
-                if col_imp is None:
-                    st.error("Colonna importo non trovata nel file.")
-                    st.write("Colonne disponibili:", list(df_fatt.columns))
-                    st.stop()
-
-                def to_float_str(v):
-                    try: return float(str(v).replace(",", ".").replace(" ", ""))
-                    except: return 0.0
-
-                df_fatt["_imp"] = df_fatt[col_imp].apply(to_float_str)
-                if col_pod:
-                    df_fatt["_pod"] = df_fatt[col_pod].astype(str).str.strip().str.upper()
-                if col_cli:
-                    df_fatt["_cli"] = df_fatt[col_cli].astype(str).str.strip().str.upper()
-                if col_dpag:
-                    df_fatt["_dpag"] = df_fatt[col_dpag].astype(str).str.strip()
-
-                # ── Colonne rilevate ───────────────────────────────────────────
-                with st.expander("ℹ️ Colonne rilevate nel file fatture"):
-                    st.write({
-                        "POD":           col_pod  or "non trovata",
-                        "Importo":       col_imp,
-                        "Cliente":       col_cli  or "non trovata",
-                        "N. Fattura":    col_num  or "non trovata",
-                        "Data Pagamento":col_dpag or "non trovata",
-                    })
-
-                def normalizza(s):
-                    s = str(s).upper().strip()
-                    for t in ["S.R.L.","SRL","S.P.A.","SPA","S.N.C.","SNC",
-                              "S.A.S.","SAS","DITTA",".",","," - ","-"]:
-                        s = s.replace(t, " ")
-                    return " ".join(s.split())
-
-                def similarita(a, b):
-                    pa = set(normalizza(a).split())
-                    pb = set(normalizza(b).split())
-                    if not pa: return 0.0
-                    return len(pa & pb) / len(pa)
-
-                # ── MATCHING ──────────────────────────────────────────────────
-                candidati   = df[df["Stato Reale"] == "ACCETTATO"].copy()
-                matches, non_trovati = [], []
-
-                for _, prev in candidati.iterrows():
-                    tot_p     = prev["Totale_N"]
-                    pod_prev  = str(prev.get("POD", "")).strip().upper()
-                    nome_prev = str(prev.get("Cliente", ""))
-                    cod_prev  = str(prev.get("Codice", "")).replace(".0", "")
-
-                    fatt_row     = None
-                    metodo       = ""
-                    affidabilita = ""
-
-                    # 1. Match per POD (criterio principale — univoco)
-                    if col_pod and pod_prev:
-                        per_pod = df_fatt[df_fatt["_pod"] == pod_prev]
-                        if not per_pod.empty:
-                            fatt_row     = per_pod.iloc[0]
-                            metodo       = "POD"
-                            affidabilita = "✅ Alta (POD)"
-
-                    # 2. Fallback: importo + nome se POD non trovato
-                    if fatt_row is None:
-                        per_imp = df_fatt[(df_fatt["_imp"] - tot_p).abs() < 0.05]
-                        if not per_imp.empty:
-                            if col_cli:
-                                per_imp = per_imp.copy()
-                                per_imp["_sim"] = per_imp["_cli"].apply(
-                                    lambda n: similarita(nome_prev, n)
-                                )
-                                buone = per_imp[per_imp["_sim"] >= 0.5].sort_values(
-                                    "_sim", ascending=False
-                                )
-                                if not buone.empty:
-                                    fatt_row = buone.iloc[0]
-                                    sim      = fatt_row["_sim"]
-                                    metodo   = "Importo + Nome"
-                                    affidabilita = ("✅ Alta" if sim >= 0.8
-                                                    else "🟡 Media")
-                                else:
-                                    # Importo ok ma nome diverso
-                                    non_trovati.append({
-                                        "Codice":  cod_prev,
-                                        "Cliente": nome_prev,
-                                        "POD":     pod_prev,
-                                        "Motivo":  f"Importo {tot_p:.2f}€ trovato ma "
-                                                   f"cliente non corrisponde "
-                                                   f"({per_imp.iloc[0].get('_cli','?')})"
-                                    })
-                                    continue
-                            else:
-                                fatt_row     = per_imp.iloc[0]
-                                metodo       = "Solo importo"
-                                affidabilita = "⚠️ Verificare"
-                        else:
-                            non_trovati.append({
-                                "Codice":  cod_prev,
-                                "Cliente": nome_prev,
-                                "POD":     pod_prev,
-                                "Motivo":  "Nessuna fattura corrispondente"
-                            })
-                            continue
-
-                    # Data pagamento dalla fattura se disponibile
-                    data_pag_fatt = ""
-                    if col_dpag and fatt_row is not None:
-                        data_pag_fatt = str(fatt_row.get("_dpag", "")).strip()
-
-                    matches.append({
-                        "Codice":        cod_prev,
-                        "Cliente prev.": nome_prev,
-                        "POD":           pod_prev,
-                        "Totale":        tot_p,
-                        "Margine":       prev["Margine_N"],
-                        "N. Fattura":    str(fatt_row.get(col_num, "—")) if col_num else "—",
-                        "Importo fatt.": fatt_row["_imp"],
-                        "Data pag.":     data_pag_fatt,
-                        "Match":         metodo,
-                        "Affidabilità":  affidabilita,
-                    })
-
-                # ── RISULTATI ─────────────────────────────────────────────────
-                if matches:
-                    st.success(f"✅ Trovate {len(matches)} corrispondenze!")
-                    df_match = pd.DataFrame(matches)
-                    st.dataframe(
-                        df_match,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Totale":        st.column_config.NumberColumn("Totale prev. €", format="%.2f"),
-                            "Margine":       st.column_config.NumberColumn("Margine €",      format="%.2f"),
-                            "Importo fatt.": st.column_config.NumberColumn("Importo fatt. €",format="%.2f"),
-                        }
-                    )
-
-                if non_trovati:
-                    with st.expander(f"⚠️ {len(non_trovati)} preventivi senza corrispondenza"):
-                        st.dataframe(pd.DataFrame(non_trovati),
-                                     use_container_width=True, hide_index=True)
-
-                if not matches:
-                    st.info("Nessuna corrispondenza trovata tra preventivi accettati e fatture.")
-                else:
-                    st.divider()
-                    st.subheader("✅ Conferma pagamenti")
-                    st.caption("I match per POD sono già preselezionati. "
-                               "Verifica quelli con affidabilità più bassa.")
-
-                    opzioni = [
-                        f"{r['Codice']} — {r['Cliente prev.']} ({r['Affidabilità']})"
-                        for _, r in df_match.iterrows()
-                    ]
-                    # Preseleziona tutto tranne "Solo importo"
-                    default_sel = [
-                        o for o, (_, r) in zip(opzioni, df_match.iterrows())
-                        if "Solo importo" not in r["Affidabilità"]
-                    ]
-                    sel_opz = st.multiselect(
-                        "Preventivi da confermare:",
-                        options=opzioni,
-                        default=default_sel,
-                    )
-                    sel = [o.split(" — ")[0] for o in sel_opz]
-
-                    # Data pagamento: usa quella dalla fattura se disponibile,
-                    # altrimenti lascia scegliere
-                    date_fatt = {
-                        r["Codice"]: r["Data pag."]
-                        for _, r in df_match.iterrows()
-                        if r.get("Data pag.")
-                    }
-                    usa_data_fatt = col_dpag and any(date_fatt.values())
-                    if usa_data_fatt:
-                        st.info("📅 Verrà usata la data pagamento presente nel file fatture.")
-                    else:
-                        data_pag = st.date_input("Data pagamento", value=datetime.now())
-
-                    if st.button("💾 SEGNA COME PAGATO", type="primary",
-                                 use_container_width=True, key="btn_paga"):
-                        if not sel:
-                            st.error("Seleziona almeno un preventivo.")
-                        else:
-                            try:
-                                df_upd = conn.read(ttl=0)
-                                df_upd["Codice_Clean"] = (
-                                    df_upd["Codice"].astype(str).str.strip()
-                                    .str.replace(".0", "", regex=False)
-                                )
-                                for cod_s in sel:
-                                    idx = df_upd[df_upd["Codice_Clean"] == cod_s].index
-                                    if not idx.empty:
-                                        if usa_data_fatt and cod_s in date_fatt:
-                                            data_str = date_fatt[cod_s]
-                                        else:
-                                            data_str = data_pag.strftime("%d/%m/%Y")
-                                        df_upd.at[idx[0], "Stato"]          = "PAGATO"
-                                        df_upd.at[idx[0], "Data Pagamento"] = data_str
-                                conn.update(data=df_upd.drop(columns=["Codice_Clean"],
-                                                              errors="ignore"))
-                                st.success(
-                                    f"✅ {len(sel)} preventiv"
-                                    f"{'o' if len(sel)==1 else 'i'} segnati come PAGATO!"
-                                )
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Errore aggiornamento: {e}")
-
-            except Exception as e:
-                st.error(f"Errore lettura file fatture: {e}")
-
-        st.divider()
-
-        # ── STORICO PAGATI ─────────────────────────────────────────────────────
-        st.subheader("📋 Storico preventivi pagati")
-        if pagati.empty:
-            st.info("Nessun preventivo pagato ancora registrato.")
-        else:
-            cols_p = [c for c in ["Data", "Codice", "Cliente", "POD", "Totale_N",
-                                   "Margine_N", "Data Pagamento"]
-                      if c in pagati.columns]
-            df_p = pagati[cols_p].copy()
-            st.dataframe(
-                df_p.rename(columns={"Totale_N": "Totale €", "Margine_N": "Margine €"}),
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Totale €":  st.column_config.NumberColumn(format="%.2f"),
-                    "Margine €": st.column_config.NumberColumn(format="%.2f"),
-                }
-            )
-            st.caption(
-                f"Totale incassato: **{pagati['Totale_N'].sum():,.2f} €** | "
-                f"Margine totale: **{pagati['Margine_N'].sum():,.2f} €**"
-            )
-
-    except Exception as e:
-        st.error("Impossibile caricare i dati.")
-        st.caption(f"Dettaglio tecnico: {e}")
 
 # ==============================================================================
-# 13. SEZIONE: STATISTICHE
+# 12. SEZIONE: STATISTICHE + PAGAMENTI
 # ==============================================================================
 elif scelta == "📊 Statistiche":
     st.title("📊 Statistiche")
@@ -1887,7 +1562,7 @@ elif scelta == "📊 Statistiche":
         df["Stato Reale"] = df.apply(stato_eff, axis=1)
         df["Totale_N"]    = df["Totale"].apply(to_float)
         df["Gestione_N"]  = df.get("Gestione", pd.Series([0.0]*len(df))).apply(to_float)
-        df["Oneri_N"]     = df.get("Oneri", pd.Series([ONERI_ISTRUTTORIA]*len(df))).apply(to_float)
+        df["Oneri_N"]     = df.get("Oneri",    pd.Series([ONERI_ISTRUTTORIA]*len(df))).apply(to_float)
         df["Margine_N"]   = df["Gestione_N"] + df["Oneri_N"]
 
         try:
@@ -1896,7 +1571,7 @@ elif scelta == "📊 Statistiche":
         except Exception:
             df["Mese"] = "N/D"
 
-        # ── KPI ───────────────────────────────────────────────────────────────
+        # KPI
         n_tot    = len(df)
         n_acc    = len(df[df["Stato Reale"] == "ACCETTATO"])
         n_pag    = len(df[df["Stato Reale"] == "PAGATO"])
@@ -1905,9 +1580,8 @@ elif scelta == "📊 Statistiche":
         marg_pag = df[df["Stato Reale"] == "PAGATO"]["Margine_N"].sum()
         marg_pct = round(marg_pag / inc_pag * 100, 1) if inc_pag else 0
         tasso    = round((n_acc + n_pag) / n_tot * 100, 1) if n_tot else 0
-        media    = round(inc_pag / n_pag, 2) if n_pag else 0
+        n_inv_puro = n_tot - n_acc - n_pag - n_scad
 
-        # ── Dati per grafici ──────────────────────────────────────────────────
         mesi_sorted = sorted(df["Mese"].dropna().unique().tolist())
         mesi_label  = [m[-2:] + "/" + m[:4] for m in mesi_sorted]
 
@@ -1919,23 +1593,15 @@ elif scelta == "📊 Statistiche":
         acc_mese  = conta_per_mese("ACCETTATO")
         pag_mese  = conta_per_mese("PAGATO")
         scad_mese = conta_per_mese("SCADUTO")
-
-        val_mese  = [
-            round(float(df[(df["Mese"] == m) & (df["Stato Reale"] == "PAGATO")]["Totale_N"].sum()), 2)
-            for m in mesi_sorted
-        ]
-        marg_mese = [
-            round(float(df[(df["Mese"] == m) & (df["Stato Reale"] == "PAGATO")]["Margine_N"].sum()), 2)
-            for m in mesi_sorted
-        ]
+        val_mese  = [round(float(df[(df["Mese"]==m)&(df["Stato Reale"]=="PAGATO")]["Totale_N"].sum()),2)
+                     for m in mesi_sorted]
+        marg_mese = [round(float(df[(df["Mese"]==m)&(df["Stato Reale"]=="PAGATO")]["Margine_N"].sum()),2)
+                     for m in mesi_sorted]
 
         import json
         import streamlit.components.v1 as components
 
-        n_inv_puro = n_tot - n_acc - n_pag - n_scad
-
-        html_stats = f"""
-<!DOCTYPE html><html><head><meta charset="UTF-8">
+        html_stats = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
   body{{margin:0;font-family:Helvetica,Arial,sans-serif;color:#141414;background:transparent}}
   .kpi-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:2rem}}
@@ -1945,37 +1611,24 @@ elif scelta == "📊 Statistiche":
   .kpi-sub{{font-size:11px;color:#b0b0b0}}
   .charts-grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}}
   .card{{background:#fff;border:0.5px solid #e2e6ec;border-radius:12px;padding:1.25rem}}
-  .card-full{{background:#fff;border:0.5px solid #e2e6ec;border-radius:12px;padding:1.25rem;margin-bottom:16px}}
-  .card-title{{font-size:11px;font-weight:500;color:#8c8c8c;text-transform:uppercase;
-               letter-spacing:.5px;margin:0 0 10px}}
+  .card-title{{font-size:11px;font-weight:500;color:#8c8c8c;text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px}}
   .legend{{display:flex;gap:14px;margin-bottom:10px;font-size:11px;color:#666;flex-wrap:wrap}}
   .legend span{{display:flex;align-items:center;gap:4px}}
   .dot{{width:10px;height:10px;border-radius:2px;flex-shrink:0}}
 </style></head><body>
-
 <div class="kpi-grid">
-  <div class="kpi">
-    <span class="kpi-label">Preventivi totali</span>
-    <span class="kpi-value">{n_tot}</span>
-    <span class="kpi-sub">tasso firma {tasso}%</span>
-  </div>
-  <div class="kpi">
-    <span class="kpi-label">Pagati</span>
+  <div class="kpi"><span class="kpi-label">Preventivi totali</span>
+    <span class="kpi-value">{n_tot}</span><span class="kpi-sub">tasso firma {tasso}%</span></div>
+  <div class="kpi"><span class="kpi-label">Pagati</span>
     <span class="kpi-value" style="color:#0C447C">{n_pag}</span>
-    <span class="kpi-sub">incassato {inc_pag:,.0f} €</span>
-  </div>
-  <div class="kpi">
-    <span class="kpi-label">Margine reale</span>
+    <span class="kpi-sub">incassato {inc_pag:,.0f} €</span></div>
+  <div class="kpi"><span class="kpi-label">Margine reale</span>
     <span class="kpi-value" style="color:#3B6D11">{marg_pag:,.0f} €</span>
-    <span class="kpi-sub">{marg_pct}% sul fatturato</span>
-  </div>
-  <div class="kpi">
-    <span class="kpi-label">Scaduti</span>
+    <span class="kpi-sub">{marg_pct}% sul fatturato</span></div>
+  <div class="kpi"><span class="kpi-label">Scaduti</span>
     <span class="kpi-value" style="color:#A32D2D">{n_scad}</span>
-    <span class="kpi-sub">da reinviare</span>
-  </div>
+    <span class="kpi-sub">da reinviare</span></div>
 </div>
-
 <div class="charts-grid">
   <div class="card">
     <p class="card-title">Preventivi per mese</p>
@@ -1992,7 +1645,6 @@ elif scelta == "📊 Statistiche":
     <div style="position:relative;height:224px"><canvas id="c2"></canvas></div>
   </div>
 </div>
-
 <div class="charts-grid">
   <div class="card">
     <p class="card-title">Margine reale per mese (€)</p>
@@ -2003,89 +1655,235 @@ elif scelta == "📊 Statistiche":
     <div style="position:relative;height:200px"><canvas id="c3"></canvas></div>
   </div>
 </div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-const mesi   = {json.dumps(mesi_label)};
-const inv    = {json.dumps(inv_mese)};
-const acc    = {json.dumps(acc_mese)};
-const pag    = {json.dumps(pag_mese)};
-const scad   = {json.dumps(scad_mese)};
-const valori = {json.dumps(val_mese)};
-const margini= {json.dumps(marg_mese)};
-
-const grid = 'rgba(0,0,0,0.06)';
-const tick = '#999';
-const base = {{responsive:true,maintainAspectRatio:false,
-  plugins:{{legend:{{display:false}}}},
-  scales:{{
-    x:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}},autoSkip:false,maxRotation:45}},border:{{display:false}}}},
-    y:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}}}},border:{{display:false}}}}
-  }}}};
-
-new Chart(document.getElementById('c1'),{{
-  type:'bar',
-  data:{{labels:mesi,datasets:[
-    {{label:'Inviati',  data:inv,  backgroundColor:'#B5D4F4',borderRadius:3,stack:'s'}},
-    {{label:'Accettati',data:acc,  backgroundColor:'#97C459',borderRadius:3,stack:'s'}},
-    {{label:'Pagati',   data:pag,  backgroundColor:'#185FA5',borderRadius:3,stack:'s'}},
-    {{label:'Scaduti',  data:scad, backgroundColor:'#F09595',borderRadius:3,stack:'s'}},
-  ]}},
-  options:{{...base,scales:{{
-    x:{{...base.scales.x,stacked:true}},
-    y:{{...base.scales.y,stacked:true,ticks:{{...base.scales.y.ticks,stepSize:1}}}}
-  }}}}
-}});
-
-new Chart(document.getElementById('c2'),{{
-  type:'bar',
-  data:{{labels:mesi,datasets:[{{
-    label:'€',data:valori,backgroundColor:'#185FA5',borderRadius:3,hoverBackgroundColor:'#0C447C'
-  }}]}},
-  options:{{...base,scales:{{
-    x:base.scales.x,
-    y:{{...base.scales.y,ticks:{{...base.scales.y.ticks,callback:v=>v.toLocaleString('it-IT')+'€'}}}}
-  }}}}
-}});
-
-new Chart(document.getElementById('c4'),{{
-  type:'bar',
-  data:{{labels:mesi,datasets:[{{
-    label:'Margine €',data:margini,backgroundColor:'#3B6D11',borderRadius:3,hoverBackgroundColor:'#27500A'
-  }}]}},
-  options:{{...base,scales:{{
-    x:base.scales.x,
-    y:{{...base.scales.y,ticks:{{...base.scales.y.ticks,callback:v=>v.toLocaleString('it-IT')+'€'}}}}
-  }}}}
-}});
-
-new Chart(document.getElementById('c3'),{{
-  type:'bar',
-  data:{{
-    labels:['Inviato','Accettato','Pagato','Scaduto'],
+const mesi={json.dumps(mesi_label)};const inv={json.dumps(inv_mese)};const acc={json.dumps(acc_mese)};
+const pag={json.dumps(pag_mese)};const scad={json.dumps(scad_mese)};
+const valori={json.dumps(val_mese)};const margini={json.dumps(marg_mese)};
+const grid='rgba(0,0,0,0.06)';const tick='#999';
+const base={{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}}}},
+  scales:{{x:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}},autoSkip:false,maxRotation:45}},border:{{display:false}}}},
+           y:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}}}},border:{{display:false}}}}}}}};
+new Chart(document.getElementById('c1'),{{type:'bar',data:{{labels:mesi,datasets:[
+  {{label:'Inviati',data:inv,backgroundColor:'#B5D4F4',borderRadius:3,stack:'s'}},
+  {{label:'Accettati',data:acc,backgroundColor:'#97C459',borderRadius:3,stack:'s'}},
+  {{label:'Pagati',data:pag,backgroundColor:'#185FA5',borderRadius:3,stack:'s'}},
+  {{label:'Scaduti',data:scad,backgroundColor:'#F09595',borderRadius:3,stack:'s'}}]}},
+  options:{{...base,scales:{{x:{{...base.scales.x,stacked:true}},y:{{...base.scales.y,stacked:true,ticks:{{...base.scales.y.ticks,stepSize:1}}}}}}}}}});
+new Chart(document.getElementById('c2'),{{type:'bar',data:{{labels:mesi,datasets:[
+  {{label:'€',data:valori,backgroundColor:'#185FA5',borderRadius:3}}]}},
+  options:{{...base,scales:{{x:base.scales.x,y:{{...base.scales.y,ticks:{{...base.scales.y.ticks,callback:v=>v.toLocaleString('it-IT')+'€'}}}}}}}}}});
+new Chart(document.getElementById('c4'),{{type:'bar',data:{{labels:mesi,datasets:[
+  {{label:'Margine €',data:margini,backgroundColor:'#3B6D11',borderRadius:3}}]}},
+  options:{{...base,scales:{{x:base.scales.x,y:{{...base.scales.y,ticks:{{...base.scales.y.ticks,callback:v=>v.toLocaleString('it-IT')+'€'}}}}}}}}}});
+new Chart(document.getElementById('c3'),{{type:'bar',
+  data:{{labels:['Inviato','Accettato','Pagato','Scaduto'],
     datasets:[{{data:[{n_inv_puro},{n_acc},{n_pag},{n_scad}],
-      backgroundColor:['#B5D4F4','#97C459','#185FA5','#F09595'],borderRadius:4}}]
-  }},
-  options:{{
-    indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      backgroundColor:['#B5D4F4','#97C459','#185FA5','#F09595'],borderRadius:4}}]}},
+  options:{{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{{legend:{{display:false}}}},
-    scales:{{
-      x:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}},stepSize:1}},border:{{display:false}}}},
-      y:{{grid:{{display:false}},ticks:{{color:tick,font:{{size:12,weight:'500'}}}},border:{{display:false}}}}
-    }}
-  }}
-}});
+    scales:{{x:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}},stepSize:1}},border:{{display:false}}}},
+             y:{{grid:{{display:false}},ticks:{{color:tick,font:{{size:12,weight:'500'}}}},border:{{display:false}}}}}}}}}});
 </script></body></html>"""
 
         components.html(html_stats, height=880, scrolling=False)
+
+        # ── PAGAMENTI ──────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("💰 Gestione Pagamenti")
+
+        pagati = df[df["Stato Reale"] == "PAGATO"]
+
+        # Storico pagati
+        if not pagati.empty:
+            cols_p = [c for c in ["Data", "Codice", "Cliente", "POD",
+                                   "Totale_N", "Margine_N", "Data Pagamento"]
+                      if c in pagati.columns]
+            st.dataframe(
+                pagati[cols_p].rename(columns={"Totale_N":"Totale €","Margine_N":"Margine €"}),
+                use_container_width=True, hide_index=True,
+                column_config={
+                    "Totale €":  st.column_config.NumberColumn(format="%.2f"),
+                    "Margine €": st.column_config.NumberColumn(format="%.2f"),
+                }
+            )
+        else:
+            st.info("Nessun preventivo pagato ancora registrato.")
+
+        # Matching fatture
+        st.divider()
+        st.subheader("📂 Carica file fatture per matching")
+        st.caption("Il matching avviene per POD (criterio principale), poi importo + nome.")
+        file_fatt = st.file_uploader(
+            "File fatture (Excel o CSV)", type=["xlsx", "xls", "csv"], key="fatt_up"
+        )
+
+        if file_fatt:
+            try:
+                if file_fatt.name.endswith(".csv"):
+                    df_fatt = pd.read_csv(file_fatt, sep=None, engine="python",
+                                          encoding="utf-8-sig", dtype=str)
+                else:
+                    df_fatt = pd.read_excel(file_fatt, dtype=str)
+
+                df_fatt.columns = [c.strip() for c in df_fatt.columns]
+
+                def trova_col(dff, keywords):
+                    for c in dff.columns:
+                        if any(k in c.upper() for k in keywords):
+                            return c
+                    return None
+
+                col_pod  = trova_col(df_fatt, ["POD"])
+                col_cli  = trova_col(df_fatt, ["CLIENTE","CLIENT","RAGIO","DENOMINAZ","NOME"])
+                col_dpag = trova_col(df_fatt, ["DATA PAGAMENTO","DATA PAG"])
+                col_num  = trova_col(df_fatt, ["NUMERO","NUM. FATT","N. FATT","FATTURA"])
+
+                COL_COMP = ["Totale Imponibile","Totale Non Imponibile","Totale Iva",
+                            "Totale Canone RAI","Totale Deposito Cauzionale"]
+                col_comp = [c for c in COL_COMP if c in df_fatt.columns]
+
+                def to_f(v):
+                    try: return float(str(v).replace(",",".").replace(" ",""))
+                    except: return 0.0
+
+                if col_comp:
+                    df_fatt["_imp"] = sum(df_fatt[c].apply(to_f) for c in col_comp)
+                    imp_desc = " + ".join(col_comp)
+                else:
+                    col_imp = trova_col(df_fatt, ["IMPORT","TOTAL","AMOUNT"])
+                    if col_imp is None:
+                        st.error("Colonna importo non trovata.")
+                        st.write("Colonne:", list(df_fatt.columns))
+                        st.stop()
+                    df_fatt["_imp"] = df_fatt[col_imp].apply(to_f)
+                    imp_desc = col_imp
+
+                if col_pod:  df_fatt["_pod"]  = df_fatt[col_pod].astype(str).str.strip().str.upper()
+                if col_cli:  df_fatt["_cli"]  = df_fatt[col_cli].astype(str).str.strip().str.upper()
+                if col_dpag: df_fatt["_dpag"] = df_fatt[col_dpag].astype(str).str.strip()
+
+                with st.expander("ℹ️ Colonne rilevate"):
+                    st.write({"POD": col_pod or "—", "Importo": imp_desc,
+                              "Cliente": col_cli or "—", "N. Fattura": col_num or "—",
+                              "Data Pagamento": col_dpag or "—"})
+
+                def normalizza(s):
+                    s = str(s).upper().strip()
+                    for t in ["S.R.L.","SRL","S.P.A.","SPA","S.N.C.","SNC","SAS","."," ,","-"]:
+                        s = s.replace(t, " ")
+                    return " ".join(s.split())
+
+                def sim(a, b):
+                    pa = set(normalizza(a).split())
+                    pb = set(normalizza(b).split())
+                    return len(pa & pb) / len(pa) if pa else 0.0
+
+                candidati = df[df["Stato Reale"] == "ACCETTATO"].copy()
+                matches, non_trovati = [], []
+
+                for _, prev in candidati.iterrows():
+                    tot_p    = prev["Totale_N"]
+                    pod_prev = str(prev.get("POD","")).strip().upper()
+                    nom_prev = str(prev.get("Cliente",""))
+                    cod_prev = str(prev.get("Codice","")).replace(".0","")
+                    fatt_row = None; metodo = ""; affid = ""
+
+                    if col_pod and pod_prev:
+                        per_pod = df_fatt[df_fatt["_pod"] == pod_prev]
+                        if not per_pod.empty:
+                            fatt_row = per_pod.iloc[0]; metodo = "POD"; affid = "✅ Alta (POD)"
+
+                    if fatt_row is None:
+                        per_imp = df_fatt[(df_fatt["_imp"] - tot_p).abs() < 0.05]
+                        if not per_imp.empty:
+                            if col_cli:
+                                per_imp = per_imp.copy()
+                                per_imp["_sim"] = per_imp["_cli"].apply(lambda n: sim(nom_prev, n))
+                                buone = per_imp[per_imp["_sim"] >= 0.5].sort_values("_sim", ascending=False)
+                                if not buone.empty:
+                                    fatt_row = buone.iloc[0]; metodo = "Importo+Nome"
+                                    affid = "✅ Alta" if fatt_row["_sim"] >= 0.8 else "🟡 Media"
+                                else:
+                                    non_trovati.append({"Codice":cod_prev,"Cliente":nom_prev,
+                                        "Motivo":f"Importo OK ma nome diverso ({per_imp.iloc[0].get('_cli','?')})"})
+                                    continue
+                            else:
+                                fatt_row = per_imp.iloc[0]; metodo = "Solo importo"; affid = "⚠️ Verificare"
+                        else:
+                            non_trovati.append({"Codice":cod_prev,"Cliente":nom_prev,
+                                                "Motivo":"Nessuna fattura corrispondente"})
+                            continue
+
+                    dpag_f = str(fatt_row.get("_dpag","")).strip() if col_dpag else ""
+                    matches.append({
+                        "Codice": cod_prev, "Cliente": nom_prev, "POD": pod_prev,
+                        "Totale": tot_p, "Margine": prev["Margine_N"],
+                        "N. Fattura": str(fatt_row.get(col_num,"—")) if col_num else "—",
+                        "Importo fatt.": fatt_row["_imp"],
+                        "Data pag.": dpag_f, "Match": metodo, "Affidabilità": affid,
+                    })
+
+                if matches:
+                    st.success(f"✅ {len(matches)} corrispondenze trovate!")
+                    df_match = pd.DataFrame(matches)
+                    st.dataframe(df_match, use_container_width=True, hide_index=True,
+                        column_config={
+                            "Totale":        st.column_config.NumberColumn("Totale prev. €", format="%.2f"),
+                            "Margine":       st.column_config.NumberColumn("Margine €",      format="%.2f"),
+                            "Importo fatt.": st.column_config.NumberColumn("Importo fatt. €",format="%.2f"),
+                        })
+
+                if non_trovati:
+                    with st.expander(f"⚠️ {len(non_trovati)} senza corrispondenza"):
+                        st.dataframe(pd.DataFrame(non_trovati), use_container_width=True, hide_index=True)
+
+                if matches:
+                    st.divider()
+                    st.subheader("✅ Conferma pagamenti")
+                    opzioni = [f"{r['Codice']} — {r['Cliente']} ({r['Affidabilità']})"
+                               for _, r in df_match.iterrows()]
+                    default_sel = [o for o,(_, r) in zip(opzioni, df_match.iterrows())
+                                   if "Solo importo" not in r["Affidabilità"]]
+                    sel_opz = st.multiselect("Preventivi da confermare:", opzioni, default=default_sel)
+                    sel = [o.split(" — ")[0] for o in sel_opz]
+
+                    date_fatt = {r["Codice"]: r["Data pag."] for _, r in df_match.iterrows()
+                                 if r.get("Data pag.")}
+                    usa_data_fatt = col_dpag and any(date_fatt.values())
+                    if usa_data_fatt:
+                        st.info("📅 Verrà usata la data pagamento dal file fatture.")
+                    else:
+                        data_pag = st.date_input("Data pagamento", value=datetime.now())
+
+                    if st.button("💾 SEGNA COME PAGATO", type="primary",
+                                 use_container_width=True, key="btn_paga"):
+                        if not sel:
+                            st.error("Seleziona almeno un preventivo.")
+                        else:
+                            try:
+                                df_upd = conn.read(ttl=0)
+                                df_upd["Codice_Clean"] = (df_upd["Codice"].astype(str)
+                                    .str.strip().str.replace(".0","",regex=False))
+                                for cod_s in sel:
+                                    idx = df_upd[df_upd["Codice_Clean"] == cod_s].index
+                                    if not idx.empty:
+                                        ds = date_fatt.get(cod_s,"") if usa_data_fatt else data_pag.strftime("%d/%m/%Y")
+                                        df_upd.at[idx[0], "Stato"]          = "PAGATO"
+                                        df_upd.at[idx[0], "Data Pagamento"] = ds
+                                conn.update(data=df_upd.drop(columns=["Codice_Clean"], errors="ignore"))
+                                st.success(f"✅ {len(sel)} preventiv{'o' if len(sel)==1 else 'i'} segnati come PAGATO!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Errore: {e}")
+
+            except Exception as e:
+                st.error(f"Errore lettura file fatture: {e}")
 
     except Exception as e:
         st.error("Impossibile caricare le statistiche.")
         st.caption(f"Dettaglio tecnico: {e}")
 
-# ==============================================================================
-# 13. SEZIONE: IMPOSTAZIONI (template email)
-# ==============================================================================
 elif scelta == "⚙️ Impostazioni":
     st.title("⚙️ Impostazioni")
 
