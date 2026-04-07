@@ -1204,8 +1204,9 @@ elif scelta == "📋 Archivio Preventivi":
         # ── Stato effettivo ────────────────────────────────────────────────────
         oggi = datetime.now()
         def stato_effettivo(row):
-            if str(row.get("Stato", "")).strip() == "ACCETTATO":
-                return "ACCETTATO"
+            s = str(row.get("Stato", "")).strip().upper()
+            if s == "PAGATO":    return "PAGATO"
+            if s == "ACCETTATO": return "ACCETTATO"
             try:
                 data_c = datetime.strptime(str(row["Data"]).strip(), "%d/%m/%Y")
                 if oggi > data_c + timedelta(days=OTP_SCADENZA_GIORNI):
@@ -1218,10 +1219,11 @@ elif scelta == "📋 Archivio Preventivi":
 
         # ── KPI ───────────────────────────────────────────────────────────────
         n_inv  = len(df[df["Stato Reale"] == "INVIATO"])
-        n_acc  = len(df[df["Stato Reale"] == "ACCETTATO"])
+        n_acc  = len(df[df["Stato Reale"].isin(["ACCETTATO", "PAGATO"])])
+        n_pag  = len(df[df["Stato Reale"] == "PAGATO"])
         n_sca  = len(df[df["Stato Reale"] == "SCADUTO"])
         try:
-            val_acc = float(df[df["Stato Reale"] == "ACCETTATO"]["Totale"].astype(float).sum())
+            val_acc = float(df[df["Stato Reale"].isin(["ACCETTATO","PAGATO"])]["Totale"].astype(float).sum())
         except Exception:
             val_acc = 0.0
 
@@ -1289,6 +1291,7 @@ tr:last-child td{{border-bottom:none}}
 tr:hover td{{background:#fafbfc}}
 .badge{{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}}
 .b-acc{{background:#EAF3DE;color:#27500A}}
+.b-pag{{background:#E6F1FB;color:#0C447C}}
 .b-inv{{background:#FAEEDA;color:#633806}}
 .b-sca{{background:#FCEBEB;color:#791F1F}}
 .pdf-btn{{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;
@@ -1345,8 +1348,8 @@ const ALL = {json.dumps(righe, ensure_ascii=False)};
 let fStato='Tutti', sortCol='data', sortDir=1;
 
 const badge = s => {{
-  const m={{ACCETTATO:'b-acc',INVIATO:'b-inv',SCADUTO:'b-sca'}};
-  const l={{ACCETTATO:'Accettato',INVIATO:'Inviato',SCADUTO:'Scaduto'}};
+  const m={{ACCETTATO:'b-acc',PAGATO:'b-pag',INVIATO:'b-inv',SCADUTO:'b-sca'}};
+  const l={{ACCETTATO:'Accettato',PAGATO:'Pagato',INVIATO:'Inviato',SCADUTO:'Scaduto'}};
   return `<span class="badge ${{m[s]||''}}">${{l[s]||s}}</span>`;
 }};
 
@@ -1561,9 +1564,27 @@ elif scelta == "📊 Statistiche":
 
         df["Stato Reale"] = df.apply(stato_eff, axis=1)
         df["Totale_N"]    = df["Totale"].apply(to_float)
-        df["Gestione_N"]  = df.get("Gestione", pd.Series([0.0]*len(df))).apply(to_float)
-        df["Oneri_N"]     = df.get("Oneri",    pd.Series([ONERI_ISTRUTTORIA]*len(df))).apply(to_float)
-        df["Margine_N"]   = df["Gestione_N"] + df["Oneri_N"]
+
+        # Margine: calcolato solo se Gestione e Oneri sono presenti nel foglio.
+        # I preventivi storici senza questi dati avranno Margine_N = NaN e
+        # vengono esclusi automaticamente dai totali di margine.
+        def to_float_or_nan(v):
+            try:
+                s = str(v).strip()
+                if s in {"", "nan", "None", "0", "0.0"}:
+                    return float("nan")
+                return float(s.replace(",", "."))
+            except:
+                return float("nan")
+
+        if "Gestione" in df.columns and "Oneri" in df.columns:
+            df["Gestione_N"] = df["Gestione"].apply(to_float_or_nan)
+            df["Oneri_N"]    = df["Oneri"].apply(to_float_or_nan)
+            df["Margine_N"]  = df["Gestione_N"] + df["Oneri_N"]
+        else:
+            df["Gestione_N"] = float("nan")
+            df["Oneri_N"]    = float("nan")
+            df["Margine_N"]  = float("nan")
 
         try:
             df["_Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors="coerce")
@@ -1572,15 +1593,18 @@ elif scelta == "📊 Statistiche":
             df["Mese"] = "N/D"
 
         # KPI
+        import numpy as np
         n_tot    = len(df)
-        n_acc    = len(df[df["Stato Reale"] == "ACCETTATO"])
+        n_acc    = len(df[df["Stato Reale"].isin(["ACCETTATO", "PAGATO"])])
         n_pag    = len(df[df["Stato Reale"] == "PAGATO"])
         n_scad   = len(df[df["Stato Reale"] == "SCADUTO"])
         inc_pag  = df[df["Stato Reale"] == "PAGATO"]["Totale_N"].sum()
-        marg_pag = df[df["Stato Reale"] == "PAGATO"]["Margine_N"].sum()
-        marg_pct = round(marg_pag / inc_pag * 100, 1) if inc_pag else 0
-        tasso    = round((n_acc + n_pag) / n_tot * 100, 1) if n_tot else 0
-        n_inv_puro = n_tot - n_acc - n_pag - n_scad
+        # nansum: ignora i preventivi storici senza Gestione/Oneri
+        marg_pag = float(np.nansum(df[df["Stato Reale"] == "PAGATO"]["Margine_N"]))
+        n_con_margine = int(df[df["Stato Reale"] == "PAGATO"]["Margine_N"].notna().sum())
+        marg_pct = round(marg_pag / inc_pag * 100, 1) if inc_pag and marg_pag else 0
+        tasso    = round(n_acc / n_tot * 100, 1) if n_tot else 0
+        n_inv_puro = n_tot - n_acc - n_scad
 
         mesi_sorted = sorted(df["Mese"].dropna().unique().tolist())
         mesi_label  = [m[-2:] + "/" + m[:4] for m in mesi_sorted]
@@ -1590,12 +1614,13 @@ elif scelta == "📊 Statistiche":
                     for m in mesi_sorted]
 
         inv_mese  = conta_per_mese("INVIATO")
-        acc_mese  = conta_per_mese("ACCETTATO")
+        acc_mese  = [int(df[(df["Mese"]==m)&(df["Stato Reale"].isin(["ACCETTATO","PAGATO"]))].shape[0])
+                     for m in mesi_sorted]
         pag_mese  = conta_per_mese("PAGATO")
         scad_mese = conta_per_mese("SCADUTO")
         val_mese  = [round(float(df[(df["Mese"]==m)&(df["Stato Reale"]=="PAGATO")]["Totale_N"].sum()),2)
                      for m in mesi_sorted]
-        marg_mese = [round(float(df[(df["Mese"]==m)&(df["Stato Reale"]=="PAGATO")]["Margine_N"].sum()),2)
+        marg_mese = [round(float(np.nansum(df[(df["Mese"]==m)&(df["Stato Reale"]=="PAGATO")]["Margine_N"])),2)
                      for m in mesi_sorted]
 
         import json
@@ -1624,7 +1649,7 @@ elif scelta == "📊 Statistiche":
     <span class="kpi-sub">incassato {inc_pag:,.0f} €</span></div>
   <div class="kpi"><span class="kpi-label">Margine reale</span>
     <span class="kpi-value" style="color:#3B6D11">{marg_pag:,.0f} €</span>
-    <span class="kpi-sub">{marg_pct}% sul fatturato</span></div>
+    <span class="kpi-sub">{marg_pct}% sul fatturato{f" · su {n_con_margine}/{n_pag} pagati" if n_pag and n_con_margine < n_pag else ""}</span></div>
   <div class="kpi"><span class="kpi-label">Scaduti</span>
     <span class="kpi-value" style="color:#A32D2D">{n_scad}</span>
     <span class="kpi-sub">da reinviare</span></div>
@@ -1763,10 +1788,16 @@ new Chart(document.getElementById('c3'),{{type:'bar',
                 if col_cli:  df_fatt["_cli"]  = df_fatt[col_cli].astype(str).str.strip().str.upper()
                 if col_dpag: df_fatt["_dpag"] = df_fatt[col_dpag].astype(str).str.strip()
 
-                with st.expander("ℹ️ Colonne rilevate"):
-                    st.write({"POD": col_pod or "—", "Importo": imp_desc,
-                              "Cliente": col_cli or "—", "N. Fattura": col_num or "—",
-                              "Data Pagamento": col_dpag or "—"})
+                # Diagnostica visibile — mostra cosa c'è nell'archivio vs fatture
+                candidati = df[df["Stato Reale"] != "PAGATO"].copy()
+                col_diag1, col_diag2 = st.columns(2)
+                col_diag1.metric("Preventivi da abbinare", len(candidati),
+                                  help="Tutti i preventivi non ancora segnati come PAGATO")
+                col_diag2.metric("Fatture nel file", len(df_fatt))
+
+                if candidati.empty:
+                    st.info("Tutti i preventivi sono già stati segnati come PAGATO.")
+                    st.stop()
 
                 def normalizza(s):
                     s = str(s).upper().strip()
@@ -1779,7 +1810,6 @@ new Chart(document.getElementById('c3'),{{type:'bar',
                     pb = set(normalizza(b).split())
                     return len(pa & pb) / len(pa) if pa else 0.0
 
-                candidati = df[df["Stato Reale"] == "ACCETTATO"].copy()
                 matches, non_trovati = [], []
 
                 for _, prev in candidati.iterrows():
@@ -1816,9 +1846,11 @@ new Chart(document.getElementById('c3'),{{type:'bar',
                             continue
 
                     dpag_f = str(fatt_row.get("_dpag","")).strip() if col_dpag else ""
+                    margine_val = prev["Margine_N"]
                     matches.append({
                         "Codice": cod_prev, "Cliente": nom_prev, "POD": pod_prev,
-                        "Totale": tot_p, "Margine": prev["Margine_N"],
+                        "Totale": tot_p,
+                        "Margine": margine_val if not pd.isna(margine_val) else None,
                         "N. Fattura": str(fatt_row.get(col_num,"—")) if col_num else "—",
                         "Importo fatt.": fatt_row["_imp"],
                         "Data pag.": dpag_f, "Match": metodo, "Affidabilità": affid,
@@ -1833,6 +1865,19 @@ new Chart(document.getElementById('c3'),{{type:'bar',
                             "Margine":       st.column_config.NumberColumn("Margine €",      format="%.2f"),
                             "Importo fatt.": st.column_config.NumberColumn("Importo fatt. €",format="%.2f"),
                         })
+                elif not non_trovati:
+                    # Nessun candidato trovato — mostra dati grezzi per debug
+                    st.warning("Nessuna corrispondenza trovata. Verifica i dati:")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.caption("POD nei preventivi archivio:")
+                        st.write(candidati["POD"].dropna().unique().tolist())
+                    with c2:
+                        st.caption("POD nelle fatture:")
+                        if col_pod:
+                            st.write(df_fatt["_pod"].dropna().unique().tolist()[:10])
+                        else:
+                            st.write("Colonna POD non trovata nel file fatture")
 
                 if non_trovati:
                     with st.expander(f"⚠️ {len(non_trovati)} senza corrispondenza"):
