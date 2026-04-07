@@ -1654,9 +1654,8 @@ elif scelta == "📊 Statistiche":
             return "INVIATO"
 
         df["Stato Reale"] = df.apply(stato_eff, axis=1)
-        df["Totale_N"] = pd.to_numeric(df["Totale"], errors="coerce").fillna(0)
+        df["Totale_N"]    = pd.to_numeric(df["Totale"], errors="coerce").fillna(0)
 
-        # Prova a estrarre mese/anno dalla colonna Data
         try:
             df["_Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors="coerce")
             df["Mese"]  = df["_Data"].dt.to_period("M").astype(str)
@@ -1664,46 +1663,157 @@ elif scelta == "📊 Statistiche":
             df["Mese"] = "N/D"
 
         # ── KPI ───────────────────────────────────────────────────────────────
-        k1, k2, k3, k4 = st.columns(4)
-        n_tot  = len(df)
-        n_acc  = len(df[df["Stato Reale"] == "ACCETTATO"])
+        n_tot   = len(df)
+        n_acc   = len(df[df["Stato Reale"] == "ACCETTATO"])
+        n_scad  = len(df[df["Stato Reale"] == "SCADUTO"])
         val_acc = df[df["Stato Reale"] == "ACCETTATO"]["Totale_N"].sum()
         tasso   = round(n_acc / n_tot * 100, 1) if n_tot else 0
-        k1.metric("Preventivi totali", n_tot)
-        k2.metric("Accettati",         n_acc)
-        k3.metric("Tasso accettazione", f"{tasso}%")
-        k4.metric("Valore accettato",  f"{val_acc:.2f} €")
+        media   = round(val_acc / n_acc, 2) if n_acc else 0
 
-        st.divider()
+        # ── Dati per grafici ──────────────────────────────────────────────────
+        mesi_sorted = sorted(df["Mese"].dropna().unique().tolist())
+        mesi_label  = [m[-2:] + "/" + m[:4] for m in mesi_sorted]  # MM/AAAA
 
-        # ── GRAFICI ───────────────────────────────────────────────────────────
-        col_g1, col_g2 = st.columns(2)
+        def conta_per_mese(stato):
+            return [int((df[(df["Mese"] == m) & (df["Stato Reale"] == stato)]).shape[0])
+                    for m in mesi_sorted]
 
-        with col_g1:
-            st.subheader("Preventivi per mese")
-            mese_grp = (df.groupby("Mese")
-                          .size()
-                          .reset_index(name="Conteggio")
-                          .sort_values("Mese"))
-            st.bar_chart(mese_grp.set_index("Mese")["Conteggio"])
+        inv_mese  = conta_per_mese("INVIATO")
+        acc_mese  = conta_per_mese("ACCETTATO")
+        scad_mese = conta_per_mese("SCADUTO")
 
-        with col_g2:
-            st.subheader("Valore accettato per mese (€)")
-            val_grp = (df[df["Stato Reale"] == "ACCETTATO"]
-                         .groupby("Mese")["Totale_N"]
-                         .sum()
-                         .reset_index(name="Valore")
-                         .sort_values("Mese"))
-            if not val_grp.empty:
-                st.bar_chart(val_grp.set_index("Mese")["Valore"])
-            else:
-                st.info("Nessun preventivo accettato.")
+        val_mese = [
+            round(float(df[(df["Mese"] == m) & (df["Stato Reale"] == "ACCETTATO")]["Totale_N"].sum()), 2)
+            for m in mesi_sorted
+        ]
 
-        st.divider()
-        st.subheader("Distribuzione stati")
-        stato_grp = df["Stato Reale"].value_counts().reset_index()
-        stato_grp.columns = ["Stato", "Conteggio"]
-        st.bar_chart(stato_grp.set_index("Stato")["Conteggio"])
+        import json
+        import streamlit.components.v1 as components
+
+        html_stats = f"""
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  body{{margin:0;font-family:Helvetica,Arial,sans-serif;color:#141414;background:transparent}}
+  .kpi-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:2rem}}
+  .kpi{{background:#f7f8fa;border-radius:8px;padding:1rem;display:flex;flex-direction:column;gap:4px}}
+  .kpi-label{{font-size:12px;color:#8c8c8c}}
+  .kpi-value{{font-size:26px;font-weight:500;color:#141414}}
+  .kpi-sub{{font-size:11px;color:#b0b0b0}}
+  .charts-grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}}
+  .card{{background:#fff;border:0.5px solid #e2e6ec;border-radius:12px;padding:1.25rem}}
+  .card-full{{background:#fff;border:0.5px solid #e2e6ec;border-radius:12px;padding:1.25rem;margin-bottom:16px}}
+  .card-title{{font-size:11px;font-weight:500;color:#8c8c8c;text-transform:uppercase;
+               letter-spacing:.5px;margin:0 0 10px}}
+  .legend{{display:flex;gap:14px;margin-bottom:10px;font-size:11px;color:#666;flex-wrap:wrap}}
+  .legend span{{display:flex;align-items:center;gap:4px}}
+  .dot{{width:10px;height:10px;border-radius:2px;flex-shrink:0}}
+</style></head><body>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <span class="kpi-label">Preventivi totali</span>
+    <span class="kpi-value">{n_tot}</span>
+    <span class="kpi-sub">da inizio archivio</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Accettati</span>
+    <span class="kpi-value" style="color:#3B6D11">{n_acc}</span>
+    <span class="kpi-sub">tasso {tasso}%</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Scaduti</span>
+    <span class="kpi-value" style="color:#A32D2D">{n_scad}</span>
+    <span class="kpi-sub">da reinviare</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Valore accettato</span>
+    <span class="kpi-value">{val_acc:,.0f} €</span>
+    <span class="kpi-sub">media {media:,.0f} € / prev.</span>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="card">
+    <p class="card-title">Preventivi per mese</p>
+    <div class="legend">
+      <span><span class="dot" style="background:#B5D4F4"></span>Inviati</span>
+      <span><span class="dot" style="background:#3B6D11"></span>Accettati</span>
+      <span><span class="dot" style="background:#F09595"></span>Scaduti</span>
+    </div>
+    <div style="position:relative;height:200px"><canvas id="c1"></canvas></div>
+  </div>
+  <div class="card">
+    <p class="card-title">Valore accettato per mese (€)</p>
+    <div style="position:relative;height:224px"><canvas id="c2"></canvas></div>
+  </div>
+</div>
+
+<div class="card-full">
+  <p class="card-title">Distribuzione stati</p>
+  <div style="position:relative;height:120px"><canvas id="c3"></canvas></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const mesi   = {json.dumps(mesi_label)};
+const inv    = {json.dumps(inv_mese)};
+const acc    = {json.dumps(acc_mese)};
+const scad   = {json.dumps(scad_mese)};
+const valori = {json.dumps(val_mese)};
+
+const grid  = 'rgba(0,0,0,0.06)';
+const tick  = '#999';
+const base  = {{responsive:true,maintainAspectRatio:false,
+  plugins:{{legend:{{display:false}}}},
+  scales:{{
+    x:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}},autoSkip:false,maxRotation:45}},border:{{display:false}}}},
+    y:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}}}},border:{{display:false}}}}
+  }}}};
+
+new Chart(document.getElementById('c1'),{{
+  type:'bar',
+  data:{{labels:mesi,datasets:[
+    {{label:'Inviati', data:inv,  backgroundColor:'#B5D4F4',borderRadius:3,stack:'s'}},
+    {{label:'Accettati',data:acc, backgroundColor:'#3B6D11',borderRadius:3,stack:'s'}},
+    {{label:'Scaduti', data:scad, backgroundColor:'#F09595',borderRadius:3,stack:'s'}},
+  ]}},
+  options:{{...base,scales:{{
+    x:{{...base.scales.x,stacked:true}},
+    y:{{...base.scales.y,stacked:true,ticks:{{...base.scales.y.ticks,stepSize:1}}}}
+  }}}}
+}});
+
+new Chart(document.getElementById('c2'),{{
+  type:'bar',
+  data:{{labels:mesi,datasets:[{{
+    label:'€',data:valori,backgroundColor:'#185FA5',borderRadius:3,hoverBackgroundColor:'#0C447C'
+  }}]}},
+  options:{{...base,scales:{{
+    x:base.scales.x,
+    y:{{...base.scales.y,ticks:{{...base.scales.y.ticks,
+      callback:v=>v.toLocaleString('it-IT')+'€'}}}}
+  }}}}
+}});
+
+new Chart(document.getElementById('c3'),{{
+  type:'bar',
+  data:{{
+    labels:['Inviato','Accettato','Scaduto'],
+    datasets:[{{data:[{n_tot - n_acc - n_scad},{n_acc},{n_scad}],
+      backgroundColor:['#B5D4F4','#3B6D11','#F09595'],borderRadius:4}}]
+  }},
+  options:{{
+    indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{{legend:{{display:false}}}},
+    scales:{{
+      x:{{grid:{{color:grid}},ticks:{{color:tick,font:{{size:11}},stepSize:1}},border:{{display:false}}}},
+      y:{{grid:{{display:false}},ticks:{{color:tick,font:{{size:12,weight:'500'}}}},border:{{display:false}}}}
+    }}
+  }}
+}});
+</script></body></html>"""
+
+        components.html(html_stats, height=780, scrolling=False)
 
     except Exception as e:
         st.error("Impossibile caricare le statistiche.")
