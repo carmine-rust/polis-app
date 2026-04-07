@@ -892,9 +892,26 @@ if scelta == "Autoletture":
                                     if item['m_corr'] and item['m_corr'] not in {"nan", "None", ""}:
                                         ET.SubElement(d, "matr_conv").text = item['m_corr']
 
-                            xml_str    = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-                            clean_name = re.sub(r'\W+', '', lista[0]['distr_nome'])[:15]
-                            zip_file.writestr(f"TAL_0050_{piva_d}_{clean_name}.xml", xml_str)
+                            xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+
+                            # Mese/anno dalla data della prima lettura del gruppo (formato MMAAAA)
+                            try:
+                                data_prima = formatta_data_italiana(lista[0]['data'])  # GG/MM/AAAA
+                                parti_d    = data_prima.split('/')
+                                mmaaaa     = f"{parti_d[1]}{parti_d[2]}"              # MMAAAA
+                            except Exception:
+                                mmaaaa = datetime.now().strftime("%m%Y")
+
+                            # Cartella = ragione sociale del distributore (safe per filesystem)
+                            rag_soc_safe = re.sub(r'[\\/:*?"<>|]+', '_',
+                                                   lista[0]['distr_nome'])[:40].strip()
+
+                            # Nome file: TAL_0050_PIVA_MITTENTE_PIVA_DISTR_MMAAAA.xml
+                            piva_mitt_clean = "".join(filter(str.isdigit, piva_mittente))
+                            nome_file = f"TAL_0050_{piva_mitt_clean}_{piva_d}_{mmaaaa}.xml"
+
+                            # Path dentro lo ZIP: RAGIONE_SOCIALE/nome_file.xml
+                            zip_file.writestr(f"{rag_soc_safe}/{nome_file}", xml_str)
                             progress_bar.progress(50 + int(((i + 1) / tot_g) * 50))
 
                 zip_buffer.seek(0)
