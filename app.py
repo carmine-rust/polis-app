@@ -1375,7 +1375,7 @@ function render(){{
       <td>${{badge(r.stato)}}</td>
       <td style="color:#8c8c8c;font-size:11px">${{r.firma||'—'}}</td>
       <td>${{r.link
-        ? `<a class="pdf-btn" href="${{r.link}}" target="_blank">📄 Apri</a>`
+        ? `<button class="pdf-btn" onclick="apriHTML('${{r.link}}')">📄 Apri</button>`
         : '<span style="color:#ccc;font-size:11px">—</span>'}}</td>
     </tr>`).join('');
   document.getElementById('cnt').textContent =
@@ -1386,6 +1386,18 @@ function render(){{
   const cols=['data','cod','cliente','pod','totale','stato','firma'];
   const idx=cols.indexOf(sortCol);
   if(idx>=0) document.querySelectorAll('th')[idx].classList.add(sortDir===1?'asc':'desc');
+}}
+
+function apriHTML(b64url) {{
+  // Estrae il Base64 dal data URI e lo apre come blob — aggira il blocco browser sui data: URI
+  const b64 = b64url.replace('data:text/html;base64,', '');
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr], {{type: 'text/html'}});
+  const url  = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }}
 
 function fil(s,btn){{
