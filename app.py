@@ -1285,7 +1285,7 @@ elif scelta == "📋 Archivio Preventivi":
 
         # ── TABELLA ───────────────────────────────────────────────────────────
         cols_show = [c for c in ["Data", "Codice", "Versione_Di", "Cliente", "POD",
-                                  "Totale", "Stato Reale", "Data Firma"]
+                                  "Totale", "Stato Reale", "Data Firma", "Anteprima"]
                      if c in df_view.columns]
         df_show = df_view[cols_show].copy()
 
@@ -1294,7 +1294,9 @@ elif scelta == "📋 Archivio Preventivi":
             df_show["Stato Reale"] = df_show["Stato Reale"].map(
                 lambda v: EMOJI_STATO.get(str(v).strip(), str(v))
             )
-
+        df_show["Anteprima"] = df_view["Codice"].apply(
+            lambda x: f"https://operation-polisenergia.streamlit.app/?codice={str(x).strip().replace('.0', '')}"
+        )
         ha_link = "Link_HTML" in df_view.columns
         col_cfg = {
             "Data":         st.column_config.TextColumn("Data",        width="small"),
@@ -1305,6 +1307,7 @@ elif scelta == "📋 Archivio Preventivi":
             "Totale":       st.column_config.NumberColumn("Totale €",  format="%.2f", width="small"),
             "Stato Reale":  st.column_config.TextColumn("Stato",       width="medium"),
             "Data Firma":   st.column_config.TextColumn("Firmato il",  width="small"),
+            "Anteprima":    st.column_config.LinkColumn("Vedi/Firma",  display_text="Apri 📄", width="small"),
         }
         if ha_link:
             df_show["Link_HTML"] = df_view["Link_HTML"].fillna("").values
