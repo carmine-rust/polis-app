@@ -1214,7 +1214,9 @@ elif scelta == "Preventivo di Connessione":
         st.warning("⚠️ Sei sicuro? Tutti i dati del preventivo corrente verranno persi.")
         c_si, c_no = st.columns(2)
         if c_si.button("✅ Sì, pulisci", use_container_width=True, key="pulisci_si"):
-            for key in list(st.session_state.keys()):
+            # Conserva login e impostazioni — cancella solo i dati del preventivo corrente
+            CONSERVA = {"autenticato", "email_template"}
+            for key in [k for k in st.session_state.keys() if k not in CONSERVA]:
                 del st.session_state[key]
             st.rerun()
         if c_no.button("❌ Annulla", use_container_width=True, key="pulisci_no"):
