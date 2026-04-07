@@ -734,7 +734,175 @@ def genera_pdf_polis(d: dict) -> bytes:
 
     return bytes(pdf.output())
 
+# ==============================================================================
+# 5b. GENERAZIONE HTML PREVENTIVO + UPLOAD GOOGLE DRIVE
+# ==============================================================================
+import base64 as _b64
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+from google.oauth2.service_account import Credentials as SACredentials
 
+DRIVE_FOLDER_ID = st.secrets.get("DRIVE_FOLDER_ID", "")
+
+
+def carica_html_su_drive(html: str, nome_file: str) -> str:
+    """Carica l'HTML su Drive e restituisce il link /file/d/ID/view (nessun login richiesto)."""
+    info   = dict(st.secrets["gcp_service_account"])
+    creds  = SACredentials.from_service_account_info(
+        info, scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    svc    = build("drive", "v3", credentials=creds, cache_discovery=False)
+    meta   = {"name": nome_file, "parents": [DRIVE_FOLDER_ID], "mimeType": "text/html"}
+    media  = MediaIoBaseUpload(io.BytesIO(html.encode("utf-8")), mimetype="text/html", resumable=False)
+    fid    = svc.files().create(body=meta, media_body=media, fields="id").execute().get("id")
+    svc.permissions().create(fileId=fid, body={"type": "anyone", "role": "reader"}).execute()
+    # /file/d/ID/view apre il visualizzatore Drive senza richiedere login
+    return f"https://drive.google.com/file/d/{fid}/view"
+
+
+def genera_html_polis(d: dict) -> str:
+    """Genera il preventivo come HTML standalone con logo Base64 incorporato."""
+    data_str = datetime.now().strftime("%d/%m/%Y")
+    scad_str = (datetime.now() + timedelta(days=OTP_SCADENZA_GIORNI)).strftime("%d/%m/%Y")
+
+    # Logo Base64 — nessuna dipendenza esterna
+    logo_tag = '<div style="color:#fff;font-size:20px;font-weight:700;">PolisEnergia srl</div>'
+    try:
+        with open("logo_polis.png", "rb") as f:
+            logo_b64 = _b64.b64encode(f.read()).decode("utf-8")
+        logo_tag = (f'<img src="data:image/png;base64,{logo_b64}" '
+                    f'style="height:40px;max-width:160px;object-fit:contain;" alt="PolisEnergia">')
+    except Exception:
+        pass
+
+    voci = [
+        ("Quota Tecnica",          d['C_Tec']),
+        ("Oneri Amministrativi",   d['Oneri']),
+        ("Oneri Gestione Pratica", d['Gestione']),
+    ]
+    righe_voci = ""
+    for i, (voce, importo) in enumerate(voci):
+        bg = "#f7f8fa" if i % 2 == 0 else "#ffffff"
+        righe_voci += (
+            f'<tr style="background:{bg}">'
+            f'<td style="padding:8px 12px;border-bottom:1px solid #e2e6ec;">{voce}</td>'
+            f'<td style="padding:8px 12px;text-align:right;border-bottom:1px solid #e2e6ec;">'
+            f'{importo:.2f} EUR</td></tr>'
+        )
+
+    return f"""<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preventivo {d['Codice']} — PolisEnergia</title>
+<style>
+  body{{margin:0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#141414;background:#f0f2f5}}
+  .page{{max-width:740px;margin:32px auto;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.10)}}
+  .header{{background:#003366;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}}
+  .header-info{{text-align:right;color:#c8dcf5;font-size:11px;line-height:1.8}}
+  .header-info strong{{color:#fff;display:block;font-size:12px;font-weight:700;margin-bottom:2px}}
+  .accent{{height:3px;background:#005aaa}}
+  .body{{padding:28px 24px}}
+  .title{{font-size:22px;font-weight:700;margin:0 0 4px;color:#141414}}
+  .subtitle{{color:#8c8c8c;font-size:11px;margin:0 0 20px}}
+  .cliente-box{{background:#f7f8fa;border-left:3px solid #005aaa;padding:12px 16px;
+                display:flex;justify-content:space-between;margin-bottom:24px;border-radius:2px}}
+  .cliente-label{{font-size:9px;color:#8c8c8c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}}
+  .cliente-name{{font-size:14px;font-weight:700;color:#141414}}
+  .pod-val{{font-size:12px;font-weight:700;color:#003366}}
+  .pod-addr{{font-size:11px;color:#8c8c8c;margin-top:2px}}
+  table{{width:100%;border-collapse:collapse;font-size:12.5px}}
+  thead td{{background:#003366;color:#fff;padding:9px 12px;font-weight:700}}
+  .subtotal td{{padding:5px 12px;color:#8c8c8c;font-size:12px}}
+  .total-row td{{background:#e6f0fa;color:#003366;font-weight:700;font-size:14px;padding:10px 12px}}
+  .section-label{{font-size:9px;font-weight:700;color:#005aaa;letter-spacing:.8px;
+                  text-transform:uppercase;margin:24px 0 4px}}
+  .section-line{{border:none;border-top:1px solid #005aaa;margin:0 0 10px}}
+  .pagamento-row{{display:flex;gap:8px;align-items:baseline;margin-bottom:4px;font-size:12px}}
+  .pagamento-label{{color:#8c8c8c;min-width:90px}}
+  .iban{{font-family:monospace;background:#f0f2f5;padding:2px 8px;border-radius:3px;font-size:11px}}
+  .firma-area{{display:flex;gap:24px;margin-top:28px;align-items:flex-end}}
+  .firma-col{{flex:1}}.firma-col.data{{max-width:130px}}
+  .firma-label{{font-size:10px;color:#8c8c8c;margin-bottom:18px}}
+  .firma-line{{border-top:1px solid #aaa;padding-top:4px;color:#ccc;font-size:10px}}
+  .footer{{background:#003366;padding:10px 24px}}
+  .footer p{{color:#c8dcf5;font-size:10px;margin:0;line-height:1.7}}
+  @media print{{body{{background:#fff}}.page{{box-shadow:none;margin:0}}}}
+</style></head><body>
+<div class="page">
+  <div class="header">
+    {logo_tag}
+    <div class="header-info">
+      <strong>POLISENERGIA SRL</strong>
+      Via Terre delle Risaie, 4 — 84131 Salerno (SA)<br>
+      P.IVA 05050950657<br>
+      assistenza@polisenergia.it · www.polisenergia.it
+    </div>
+  </div>
+  <div class="accent"></div>
+  <div class="body">
+    <p class="title">Preventivo n. {d['Codice']}</p>
+    <p class="subtitle">Emesso il {data_str} &nbsp;—&nbsp; Valido fino al {scad_str}</p>
+    <div class="cliente-box">
+      <div>
+        <div class="cliente-label">Spett.le</div>
+        <div class="cliente-name">{d['Cliente']}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="cliente-label">POD</div>
+        <div class="pod-val">{d['POD']}</div>
+        <div class="pod-addr">{d['Indirizzo']}</div>
+      </div>
+    </div>
+    <table style="margin-bottom:4px">
+      <thead><tr>
+        <td style="width:76%">Descrizione prestazione</td>
+        <td style="text-align:right">Importo</td>
+      </tr></thead>
+      <tbody>{righe_voci}</tbody>
+    </table>
+    <table style="margin-top:4px;margin-bottom:4px">
+      <tbody>
+        <tr class="subtotal">
+          <td style="text-align:right;width:76%">Totale imponibile</td>
+          <td style="text-align:right">{d['Imponibile']:.2f} EUR</td>
+        </tr>
+        <tr class="subtotal">
+          <td style="text-align:right">IVA ({d['IVA_Perc']}%)</td>
+          <td style="text-align:right">{d['IVA_Euro']:.2f} EUR</td>
+        </tr>
+        <tr class="total-row">
+          <td>Totale da corrispondere</td>
+          <td style="text-align:right">{d['Totale']:.2f} EUR</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="section-label">Modalità di pagamento</p>
+    <hr class="section-line">
+    <div class="pagamento-row">
+      <span class="pagamento-label">Bonifico bancario</span>
+      <span class="iban">{d['IBAN']}</span>
+    </div>
+    <div class="pagamento-row">
+      <span class="pagamento-label">Causale:</span>
+      <span>Accettazione Preventivo {d['Codice']} — {d['Cliente']}</span>
+    </div>
+    <div class="firma-area">
+      <div class="firma-col">
+        <div class="firma-label">Per accettazione (timbro e firma leggibile):</div>
+        <div class="firma-line">___________________________________</div>
+      </div>
+      <div class="firma-col data">
+        <div class="firma-label">Data:</div>
+        <div class="firma-line">________________</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <p>L'esecuzione della prestazione è subordinata a: conferma della proposta entro 30 gg e
+    completamento di eventuali opere/autorizzazioni a cura del cliente finale.<br>
+    Inviare il documento firmato a <strong style="color:#fff">assistenza@polisenergia.it</strong></p>
+  </div>
+</div></body></html>"""
 
 # ==============================================================================
 # 7. AUTENTICAZIONE OPERATORI
@@ -1296,7 +1464,7 @@ elif scelta == "📋 Archivio Preventivi":
 
         # ── TABELLA ───────────────────────────────────────────────────────────
         cols_show = [c for c in ["Data", "Codice", "Versione_Di", "Cliente", "POD",
-                                  "Totale", "Stato Reale", "Data Firma", "Anteprima"]
+                                  "Totale", "Stato Reale", "Data Firma"]
                      if c in df_view.columns]
         df_show = df_view[cols_show].copy()
 
@@ -1305,33 +1473,35 @@ elif scelta == "📋 Archivio Preventivi":
             df_show["Stato Reale"] = df_show["Stato Reale"].map(
                 lambda v: EMOJI_STATO.get(str(v).strip(), str(v))
             )
-        df_show["Anteprima"] = df_view["Codice"].apply(
-            lambda x: f"https://operation-polisenergia.streamlit.app/?codice={str(x).strip().replace('.0', '')}"
-        )
+
+        # Link_HTML: presente solo se la colonna esiste e la cella non è vuota
         ha_link = "Link_HTML" in df_view.columns
+
         col_cfg = {
-            "Data":         st.column_config.TextColumn("Data",        width="small"),
-            "Codice":       st.column_config.TextColumn("Codice",      width="medium"),
-            "Versione_Di":  st.column_config.TextColumn("Revisione di",width="medium"),
-            "Cliente":      st.column_config.TextColumn("Cliente",     width="large"),
-            "POD":          st.column_config.TextColumn("POD",         width="medium"),
-            "Totale":       st.column_config.NumberColumn("Totale €",  format="%.2f", width="small"),
-            "Stato Reale":  st.column_config.TextColumn("Stato",       width="medium"),
-            "Data Firma":   st.column_config.TextColumn("Firmato il",  width="small"),
-            "Anteprima":    st.column_config.LinkColumn("Vedi/Firma",  display_text="Apri 📄", width="small"),
+            "Data":        st.column_config.TextColumn("Data",        width="small"),
+            "Codice":      st.column_config.TextColumn("Codice",      width="medium"),
+            "Versione_Di": st.column_config.TextColumn("Revisione di",width="medium"),
+            "Cliente":     st.column_config.TextColumn("Cliente",     width="large"),
+            "POD":         st.column_config.TextColumn("POD",         width="medium"),
+            "Totale":      st.column_config.NumberColumn("Totale €",  format="%.2f", width="small"),
+            "Stato Reale": st.column_config.TextColumn("Stato",       width="medium"),
+            "Data Firma":  st.column_config.TextColumn("Firmato il",  width="small"),
         }
+
         if ha_link:
-            df_show["Link_HTML"] = df_view["Link_HTML"].fillna("").values
-            col_cfg["Codice"] = st.column_config.LinkColumn(
-                "Preventivo",
-                display_text=r"(.+)",
-                help="Clicca per aprire il preventivo HTML su Drive",
-                width="medium",
-            )
-            df_show["Codice"] = df_show["Link_HTML"].where(
-                df_show["Link_HTML"] != "", df_show["Codice"]
-            )
-            df_show = df_show.drop(columns=["Link_HTML"])
+            # Costruiamo la colonna Codice: link Drive se presente, altrimenti testo
+            links = df_view["Link_HTML"].fillna("").astype(str)
+            codici = df_view["Codice"].astype(str)
+            df_show["Codice"] = links.where(links.str.startswith("http"), codici).values
+
+            # Usiamo LinkColumn solo se almeno un link è presente
+            if links.str.startswith("http").any():
+                col_cfg["Codice"] = st.column_config.LinkColumn(
+                    "Preventivo",
+                    display_text=r"(.+)",
+                    help="Clicca per aprire il preventivo HTML su Drive",
+                    width="medium",
+                )
 
         st.dataframe(df_show, use_container_width=True, hide_index=True, column_config=col_cfg)
 
