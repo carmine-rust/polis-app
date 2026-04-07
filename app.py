@@ -525,39 +525,8 @@ def genera_pdf_polis(d: dict) -> bytes:
 # 5b. GENERAZIONE HTML PREVENTIVO + UPLOAD GOOGLE DRIVE
 # ==============================================================================
 import base64 as _b64
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-from google.oauth2.service_account import Credentials as SACredentials
 
-DRIVE_FOLDER_ID = (
-    st.secrets.get("DRIVE_FOLDER_ID", "")
-    or st.secrets.get("connections", {}).get("gsheets", {}).get("DRIVE_FOLDER_ID", "")
-)
-
-
-def carica_html_su_drive(html: str, nome_file: str) -> str:
-    """Carica l'HTML su Drive e restituisce il link /file/d/ID/view (nessun login richiesto)."""
-    # Tutte le credenziali sono in [connections.gsheets] — le leggiamo da lì
-    # escludendo le chiavi non pertinenti al service account
-    ESCLUDI = {"DRIVE_FOLDER_ID", "spreadsheet", "worksheet", "url"}
-    raw  = dict(st.secrets["connections"]["gsheets"])
-    info = {k: v for k, v in raw.items() if k not in ESCLUDI}
-
-    if "private_key" not in info:
-        raise ValueError(
-            "Credenziali service account non trovate in [connections.gsheets]. "
-            "Verifica che 'private_key' sia presente in secrets.toml."
-        )
-
-    creds = SACredentials.from_service_account_info(
-        info, scopes=["https://www.googleapis.com/auth/drive"]
-    )
-    svc   = build("drive", "v3", credentials=creds, cache_discovery=False)
-    meta  = {"name": nome_file, "parents": [DRIVE_FOLDER_ID], "mimeType": "text/html"}
-    media = MediaIoBaseUpload(io.BytesIO(html.encode("utf-8")), mimetype="text/html", resumable=False)
-    fid   = svc.files().create(body=meta, media_body=media, fields="id").execute().get("id")
-    svc.permissions().create(fileId=fid, body={"type": "anyone", "role": "reader"}).execute()
-    return f"https://drive.google.com/file/d/{fid}/view"
+DRIVE_FOLDER_ID = ""  # non utilizzato — archiviazione tramite Base64 nel Sheet
 
 
 def genera_html_polis(d: dict) -> str:
@@ -1102,35 +1071,23 @@ elif scelta == "Preventivo di Connessione":
                 }
                 st.session_state.pdf_bytes = genera_pdf_polis(dati_preventivo)
                 html_preventivo            = genera_html_polis(dati_preventivo)
-
-                # Caricamento HTML su Drive
-                link_html = ""
-                if not DRIVE_FOLDER_ID:
-                    st.warning("⚠️ DRIVE_FOLDER_ID non configurato nei secrets — il preventivo non verrà archiviato su Drive.")
-                else:
-                    try:
-                        with st.spinner("Archiviazione su Drive..."):
-                            link_html = carica_html_su_drive(
-                                html_preventivo,
-                                f"Preventivo_{cod}_{nome[:20]}.html"
-                            )
-                        st.info(f"✅ HTML archiviato su Drive.")
-                    except Exception as e:
-                        st.error(f"❌ Errore upload Drive: {e}")
+                html_b64                   = _b64.b64encode(
+                    html_preventivo.encode("utf-8")
+                ).decode("utf-8")
 
                 try:
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     df   = conn.read(ttl=0)
                     nuova_riga = pd.DataFrame([{
-                        "Data":      datetime.now().strftime("%d/%m/%Y"),
-                        "Codice":    str(cod),
-                        "Versione_Di": cod_padre,       # riferimento al preventivo sostituito
-                        "Cliente":   nome,
-                        "POD":       pod,
-                        "Totale":    totale,
-                        "Stato":     "Inviato",
-                        "Email":     email_dest,        # salviamo l'email per il reinvio
-                        "Link_HTML": link_html,
+                        "Data":        datetime.now().strftime("%d/%m/%Y"),
+                        "Codice":      str(cod),
+                        "Versione_Di": cod_padre,
+                        "Cliente":     nome,
+                        "POD":         pod,
+                        "Totale":      totale,
+                        "Stato":       "Inviato",
+                        "Email":       email_dest,
+                        "HTML_B64":    html_b64,
                     }])
                     conn.update(data=pd.concat([df, nuova_riga], ignore_index=True))
                     st.success(f"✅ Preventivo {cod} generato e archiviato!")
@@ -1262,13 +1219,14 @@ elif scelta == "📋 Archivio Preventivi":
             val_acc = 0.0
 
         # ── Costruzione righe JSON per il componente HTML ──────────────────────
-        ha_link = "Link_HTML" in df.columns
+        ha_link = "HTML_B64" in df.columns
         righe = []
         for _, r in df.iterrows():
-            link = ""
+            data_uri = ""
             if ha_link:
-                lv = str(r.get("Link_HTML", "")).strip()
-                link = lv if lv.startswith("http") else ""
+                b64v = str(r.get("HTML_B64", "")).strip()
+                if b64v and b64v not in {"", "nan"}:
+                    data_uri = f"data:text/html;base64,{b64v}"
             righe.append({
                 "data":    str(r.get("Data",       "")).strip(),
                 "cod":     str(r.get("Codice",     "")).strip().replace(".0", ""),
@@ -1278,7 +1236,7 @@ elif scelta == "📋 Archivio Preventivi":
                 "totale":  float(r["Totale"]) if str(r.get("Totale","")).replace(".","").isdigit() else 0.0,
                 "stato":   str(r.get("Stato Reale","")).strip(),
                 "firma":   str(r.get("Data Firma", "")).strip(),
-                "link":    link,
+                "link":    data_uri,
             })
 
         import json
