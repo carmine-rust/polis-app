@@ -163,7 +163,136 @@ def invia_email(smtp: dict, to: str, subject: str, body: str,
     with smtplib.SMTP_SSL(smtp["server"], smtp["port"], context=ctx) as server:
         server.login(smtp["sender"], smtp["password"])
         server.send_message(msg)
+        
+# ==============================================================================
+# 6. PAGINA CLIENTE: ACCETTAZIONE ONLINE (intercettazione via query params)
+# ==============================================================================
 
+codice_param = st.query_params.get("codice", "")
+otp_param    = st.query_params.get("otp", "")
+
+if codice_param:
+    st.title("🖋️ Visualizzazione Preventivo")
+    cod_u = str(codice_param).strip().replace('.0', '')
+    otp_u = str(otp_param).strip()
+
+    try:
+        conn   = st.connection("gsheets", type=GSheetsConnection)
+        df     = conn.read(ttl=0)
+        df['Codice_Clean'] = df['Codice'].astype(str).str.strip().str.replace('.0', '', regex=False)
+
+        if cod_u not in df['Codice_Clean'].values:
+            st.error("⚠️ Link non valido o preventivo non trovato. Contatta PolisEnergia.")
+            st.stop()
+
+        idx            = df[df['Codice_Clean'] == cod_u].index[0]
+        nome_cliente   = df.at[idx, "Cliente"]
+        stato_attuale  = str(df.at[idx, "Stato"]).strip()
+
+        if not otp_u:
+            st.info(f"Visualizzazione in modalità anteprima per il cliente: **{df.at[idx, 'Cliente']}**")
+            st.warning("Per firmare il documento è necessario accedere tramite il link inviato via email.")
+            st.write(f"**POD:** {df.at[idx, 'POD']}")
+            st.write(f"**Totale:** {df.at[idx, 'Totale']} EUR")
+            st.stop()
+            
+        # Già firmato
+        if stato_attuale == "ACCETTATO":
+            st.success("✅ Questo preventivo è già stato firmato. Grazie!")
+            st.stop()
+
+        # Verifica scadenza OTP (usa la colonna "Data" di creazione preventivo)
+        data_creazione = str(df.at[idx, "Data"]).strip()
+        # La colonna Data contiene solo GG/MM/AAAA — aggiungiamo orario fittizio 00:00
+        # Se esiste una colonna Data_OTP più precisa, usare quella
+        try:
+            data_per_scadenza = datetime.strptime(data_creazione, "%d/%m/%Y")
+            scaduto = datetime.now() > data_per_scadenza + timedelta(days=OTP_SCADENZA_GIORNI)
+        except Exception:
+            scaduto = True
+
+        if scaduto:
+            st.error(
+                f"⏰ Il link di firma è scaduto (validità {OTP_SCADENZA_GIORNI} giorni). "
+                f"Contatta PolisEnergia per ricevere un nuovo preventivo."
+            )
+            st.stop()
+
+        try:
+            importo_totale = float(df.at[idx, "Totale"])
+        except Exception:
+            importo_totale = 0.0
+
+        # Calcolo giorni rimanenti
+        data_scadenza   = data_per_scadenza + timedelta(days=OTP_SCADENZA_GIORNI)
+        giorni_rimanenti = (data_scadenza - datetime.now()).days
+
+        # Box istruzioni pagamento
+        st.markdown(f"""
+            <div style="background:rgba(255,255,255,0.1);padding:20px;border-radius:10px;
+                        border:1px solid white;margin-bottom:25px;">
+                <h3 style="color:white;margin-top:0;">💳 Istruzioni per il pagamento</h3>
+                <p style="color:white;font-size:1.1em;"><strong>Cliente:</strong> {nome_cliente}</p>
+                <p style="color:white;font-size:1.1em;">
+                    <strong>Importo:</strong> {importo_totale:.2f} EUR
+                </p>
+                <p style="color:#ffe08a;font-size:0.9em;">
+                    ⏳ Link valido ancora per <strong>{giorni_rimanenti} giorni</strong>
+                    (scade il {data_scadenza.strftime('%d/%m/%Y')})
+                </p>
+                <hr style="border-color:rgba(255,255,255,0.3);">
+                <p style="color:white;font-weight:bold;margin-bottom:5px;">COORDINATE BANCARIE:</p>
+                <ul style="color:white;list-style-type:none;padding-left:0;">
+                    <li><strong>Intestatario:</strong> {INTESTATARIO}</li>
+                    <li><strong>Banca:</strong> {NOME_BANCA}</li>
+                    <li><strong>IBAN:</strong>
+                        <span style="font-family:monospace;background:rgba(0,0,0,0.2);
+                                     padding:2px 5px;">{IBAN_POLIS}</span>
+                    </li>
+                    <li><strong>Causale:</strong> Accettazione Preventivo {cod_u} - {nome_cliente}</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<p style='color:white;font-weight:bold;'>Inserisci l'OTP ricevuto via mail:</p>",
+                    unsafe_allow_html=True)
+        otp_in = st.text_input("OTP:", max_chars=6, label_visibility="collapsed")
+
+        if st.button("✅ FIRMA E ACCETTA ORA"):
+            if not otp_in.strip():
+                st.warning("Inserisci il codice OTP prima di procedere.")
+            elif otp_in.strip() == otp_u:
+                df.at[idx, "Stato"]      = "ACCETTATO"
+                df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                conn.update(data=df.drop(columns=['Codice_Clean']))
+
+                # Notifica interna (silenziosa in caso di errore)
+                try:
+                    smtp = get_smtp_config()
+                    invia_email(
+                        smtp=smtp,
+                        to=smtp["sender"],
+                        subject=f"✅ PREVENTIVO FIRMATO: {nome_cliente}",
+                        body=(
+                            f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}.\n"
+                            f"Data firma: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+                            f"Controlla il database."
+                        )
+                    )
+                except Exception:
+                    pass
+
+                st.success("✅ Documento firmato con successo!")
+                st.balloons()
+            else:
+                st.error("❌ OTP non corretto. Riprova o contatta PolisEnergia.")
+
+    except Exception as e:
+        st.error("Si è verificato un errore tecnico. Contatta PolisEnergia.")
+        # Log tecnico solo in sviluppo — rimuovere in produzione:
+        st.caption(f"Dettaglio tecnico: {e}")
+
+    st.stop()   # Il cliente non vede mai l'area operativa
 # ==============================================================================
 # 5. GENERAZIONE PDF PREVENTIVO
 # ==============================================================================
@@ -594,128 +723,7 @@ def b64_to_html(b64: str) -> str:
     """Decodifica l'HTML da Base64."""
     return _b64.b64decode(b64.encode("utf-8")).decode("utf-8")
 
-# ==============================================================================
-# 6. PAGINA CLIENTE: ACCETTAZIONE ONLINE (intercettazione via query params)
-# ==============================================================================
 
-codice_param = st.query_params.get("codice", "")
-otp_param    = st.query_params.get("otp", "")
-
-if otp_param and codice_param:
-    st.title("🖋️ Accettazione Online Preventivo")
-    cod_u = str(codice_param).strip().replace('.0', '')
-    otp_u = str(otp_param).strip()
-
-    try:
-        conn   = st.connection("gsheets", type=GSheetsConnection)
-        df     = conn.read(ttl=0)
-        df['Codice_Clean'] = df['Codice'].astype(str).str.strip().str.replace('.0', '', regex=False)
-
-        if cod_u not in df['Codice_Clean'].values:
-            st.error("⚠️ Link non valido o preventivo non trovato. Contatta PolisEnergia.")
-            st.stop()
-
-        idx            = df[df['Codice_Clean'] == cod_u].index[0]
-        nome_cliente   = df.at[idx, "Cliente"]
-        stato_attuale  = str(df.at[idx, "Stato"]).strip()
-
-        # Già firmato
-        if stato_attuale == "ACCETTATO":
-            st.success("✅ Questo preventivo è già stato firmato. Grazie!")
-            st.stop()
-
-        # Verifica scadenza OTP (usa la colonna "Data" di creazione preventivo)
-        data_creazione = str(df.at[idx, "Data"]).strip()
-        # La colonna Data contiene solo GG/MM/AAAA — aggiungiamo orario fittizio 00:00
-        # Se esiste una colonna Data_OTP più precisa, usare quella
-        try:
-            data_per_scadenza = datetime.strptime(data_creazione, "%d/%m/%Y")
-            scaduto = datetime.now() > data_per_scadenza + timedelta(days=OTP_SCADENZA_GIORNI)
-        except Exception:
-            scaduto = True
-
-        if scaduto:
-            st.error(
-                f"⏰ Il link di firma è scaduto (validità {OTP_SCADENZA_GIORNI} giorni). "
-                f"Contatta PolisEnergia per ricevere un nuovo preventivo."
-            )
-            st.stop()
-
-        try:
-            importo_totale = float(df.at[idx, "Totale"])
-        except Exception:
-            importo_totale = 0.0
-
-        # Calcolo giorni rimanenti
-        data_scadenza   = data_per_scadenza + timedelta(days=OTP_SCADENZA_GIORNI)
-        giorni_rimanenti = (data_scadenza - datetime.now()).days
-
-        # Box istruzioni pagamento
-        st.markdown(f"""
-            <div style="background:rgba(255,255,255,0.1);padding:20px;border-radius:10px;
-                        border:1px solid white;margin-bottom:25px;">
-                <h3 style="color:white;margin-top:0;">💳 Istruzioni per il pagamento</h3>
-                <p style="color:white;font-size:1.1em;"><strong>Cliente:</strong> {nome_cliente}</p>
-                <p style="color:white;font-size:1.1em;">
-                    <strong>Importo:</strong> {importo_totale:.2f} EUR
-                </p>
-                <p style="color:#ffe08a;font-size:0.9em;">
-                    ⏳ Link valido ancora per <strong>{giorni_rimanenti} giorni</strong>
-                    (scade il {data_scadenza.strftime('%d/%m/%Y')})
-                </p>
-                <hr style="border-color:rgba(255,255,255,0.3);">
-                <p style="color:white;font-weight:bold;margin-bottom:5px;">COORDINATE BANCARIE:</p>
-                <ul style="color:white;list-style-type:none;padding-left:0;">
-                    <li><strong>Intestatario:</strong> {INTESTATARIO}</li>
-                    <li><strong>Banca:</strong> {NOME_BANCA}</li>
-                    <li><strong>IBAN:</strong>
-                        <span style="font-family:monospace;background:rgba(0,0,0,0.2);
-                                     padding:2px 5px;">{IBAN_POLIS}</span>
-                    </li>
-                    <li><strong>Causale:</strong> Accettazione Preventivo {cod_u} - {nome_cliente}</li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<p style='color:white;font-weight:bold;'>Inserisci l'OTP ricevuto via mail:</p>",
-                    unsafe_allow_html=True)
-        otp_in = st.text_input("OTP:", max_chars=6, label_visibility="collapsed")
-
-        if st.button("✅ FIRMA E ACCETTA ORA"):
-            if not otp_in.strip():
-                st.warning("Inserisci il codice OTP prima di procedere.")
-            elif otp_in.strip() == otp_u:
-                df.at[idx, "Stato"]      = "ACCETTATO"
-                df.at[idx, "Data Firma"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                conn.update(data=df.drop(columns=['Codice_Clean']))
-
-                # Notifica interna (silenziosa in caso di errore)
-                try:
-                    smtp = get_smtp_config()
-                    invia_email(
-                        smtp=smtp,
-                        to=smtp["sender"],
-                        subject=f"✅ PREVENTIVO FIRMATO: {nome_cliente}",
-                        body=(
-                            f"Il cliente {nome_cliente} ha accettato il preventivo {cod_u}.\n"
-                            f"Data firma: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
-                            f"Controlla il database."
-                        )
-                    )
-                except Exception:
-                    pass
-
-                st.success("✅ Documento firmato con successo!")
-                st.balloons()
-            else:
-                st.error("❌ OTP non corretto. Riprova o contatta PolisEnergia.")
-
-    except Exception as e:
-        st.error("Si è verificato un errore tecnico. Contatta PolisEnergia.")
-        # Log tecnico solo in sviluppo — rimuovere in produzione:
-        st.caption(f"Dettaglio tecnico: {e}")
-
-    st.stop()   # Il cliente non vede mai l'area operativa
 
 # ==============================================================================
 # 7. AUTENTICAZIONE OPERATORI
