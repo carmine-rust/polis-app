@@ -534,15 +534,10 @@ def genera_html_polis(d: dict) -> str:
     data_str = datetime.now().strftime("%d/%m/%Y")
     scad_str = (datetime.now() + timedelta(days=OTP_SCADENZA_GIORNI)).strftime("%d/%m/%Y")
 
-    # Logo Base64 — nessuna dipendenza esterna
-    logo_tag = '<div style="color:#fff;font-size:20px;font-weight:700;">PolisEnergia srl</div>'
-    try:
-        with open("logo_polis.png", "rb") as f:
-            logo_b64 = _b64.b64encode(f.read()).decode("utf-8")
-        logo_tag = (f'<img src="data:image/png;base64,{logo_b64}" '
-                    f'style="height:40px;max-width:160px;object-fit:contain;" alt="PolisEnergia">')
-    except Exception:
-        pass
+    # Header: testo invece del logo PNG — il Base64 dell'immagine pesa 30-40KB
+    # e farebbe superare il limite di 50.000 caratteri per cella di Google Sheets.
+    # Il logo rimane nel PDF; nell'HTML usiamo il nome testuale.
+    logo_tag = '<div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:.5px;">PolisEnergia srl</div>'
 
     voci = [
         ("Quota Tecnica",          d['C_Tec']),
