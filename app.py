@@ -1431,7 +1431,7 @@ elif scelta == "📋 Archivio Preventivi":
             st.info("Nessun preventivo in archivio.")
             st.stop()
 
-        # Stato effettivo con scadenza
+        # ── Stato effettivo ────────────────────────────────────────────────────
         oggi = datetime.now()
         def stato_effettivo(row):
             if str(row.get("Stato", "")).strip() == "ACCETTATO":
@@ -1446,70 +1446,194 @@ elif scelta == "📋 Archivio Preventivi":
 
         df["Stato Reale"] = df.apply(stato_effettivo, axis=1)
 
-        # ── FILTRI ────────────────────────────────────────────────────────────
-        col_f1, col_f2 = st.columns([2, 1])
-        filtro_testo = col_f1.text_input("🔍 Cerca per cliente, codice o POD", "")
-        filtro_stato = col_f2.selectbox("Stato", ["Tutti", "INVIATO", "ACCETTATO", "SCADUTO"])
+        # ── KPI ───────────────────────────────────────────────────────────────
+        n_inv  = len(df[df["Stato Reale"] == "INVIATO"])
+        n_acc  = len(df[df["Stato Reale"] == "ACCETTATO"])
+        n_sca  = len(df[df["Stato Reale"] == "SCADUTO"])
+        try:
+            val_acc = float(df[df["Stato Reale"] == "ACCETTATO"]["Totale"].astype(float).sum())
+        except Exception:
+            val_acc = 0.0
 
-        df_view = df.copy()
-        if filtro_testo:
-            mask = (
-                df_view["Cliente"].astype(str).str.contains(filtro_testo, case=False, na=False) |
-                df_view["Codice"].astype(str).str.contains(filtro_testo, case=False, na=False)  |
-                df_view["POD"].astype(str).str.contains(filtro_testo, case=False, na=False)
-            )
-            df_view = df_view[mask]
-        if filtro_stato != "Tutti":
-            df_view = df_view[df_view["Stato Reale"] == filtro_stato]
+        # ── Costruzione righe JSON per il componente HTML ──────────────────────
+        ha_link = "Link_HTML" in df.columns
+        righe = []
+        for _, r in df.iterrows():
+            link = ""
+            if ha_link:
+                lv = str(r.get("Link_HTML", "")).strip()
+                link = lv if lv.startswith("http") else ""
+            righe.append({
+                "data":    str(r.get("Data",       "")).strip(),
+                "cod":     str(r.get("Codice",     "")).strip().replace(".0", ""),
+                "ver":     str(r.get("Versione_Di","")).strip(),
+                "cliente": str(r.get("Cliente",    "")).strip(),
+                "pod":     str(r.get("POD",        "")).strip(),
+                "totale":  float(r["Totale"]) if str(r.get("Totale","")).replace(".","").isdigit() else 0.0,
+                "stato":   str(r.get("Stato Reale","")).strip(),
+                "firma":   str(r.get("Data Firma", "")).strip(),
+                "link":    link,
+            })
 
-        # ── TABELLA ───────────────────────────────────────────────────────────
-        cols_show = [c for c in ["Data", "Codice", "Versione_Di", "Cliente", "POD",
-                                  "Totale", "Stato Reale", "Data Firma"]
-                     if c in df_view.columns]
-        df_show = df_view[cols_show].copy()
+        import json
+        import streamlit.components.v1 as components
 
-        EMOJI_STATO = {"ACCETTATO": "🟢 ACCETTATO", "SCADUTO": "🔴 SCADUTO", "INVIATO": "🟡 INVIATO"}
-        if "Stato Reale" in df_show.columns:
-            df_show["Stato Reale"] = df_show["Stato Reale"].map(
-                lambda v: EMOJI_STATO.get(str(v).strip(), str(v))
-            )
+        html_archivio = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#141414;background:transparent}}
+.kpi-row{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}}
+.kpi{{background:#fff;border:0.5px solid #e2e6ec;border-radius:10px;padding:.85rem 1rem}}
+.kpi-label{{font-size:11px;color:#8c8c8c;margin-bottom:4px}}
+.kpi-val{{font-size:20px;font-weight:500}}
+.toolbar{{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}}
+.search{{flex:1;min-width:160px;padding:7px 11px;border:0.5px solid #d0d4dc;border-radius:8px;
+         font-size:13px;outline:none;background:#fff;color:#141414}}
+.search:focus{{border-color:#185FA5}}
+.fbtn{{padding:6px 13px;border:0.5px solid #d0d4dc;border-radius:8px;background:#fff;
+       font-size:12px;color:#555;cursor:pointer;white-space:nowrap}}
+.fbtn.on{{background:#003366;color:#fff;border-color:#003366}}
+.table-wrap{{background:#fff;border:0.5px solid #e2e6ec;border-radius:12px;overflow:hidden}}
+table{{width:100%;border-collapse:collapse;font-size:12px}}
+thead tr{{background:#f7f8fa;border-bottom:1px solid #e2e6ec}}
+th{{padding:9px 12px;text-align:left;font-size:11px;font-weight:500;color:#8c8c8c;
+    text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;cursor:pointer;user-select:none}}
+th:hover{{color:#003366}}
+th.asc::after{{content:" ↑"}}
+th.desc::after{{content:" ↓"}}
+td{{padding:9px 12px;border-bottom:0.5px solid #f0f2f5;vertical-align:middle}}
+tr:last-child td{{border-bottom:none}}
+tr:hover td{{background:#fafbfc}}
+.badge{{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}}
+.b-acc{{background:#EAF3DE;color:#27500A}}
+.b-inv{{background:#FAEEDA;color:#633806}}
+.b-sca{{background:#FCEBEB;color:#791F1F}}
+.pdf-btn{{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;
+          border:0.5px solid #d0d4dc;border-radius:6px;background:#f7f8fa;
+          font-size:11px;color:#555;text-decoration:none;white-space:nowrap}}
+.pdf-btn:hover{{background:#e6f0fa;border-color:#185FA5;color:#185FA5}}
+.footer{{display:flex;justify-content:space-between;align-items:center;
+         padding:9px 12px;background:#f7f8fa;border-top:0.5px solid #e2e6ec;
+         font-size:11px;color:#8c8c8c}}
+.ver{{font-size:10px;color:#aaa;margin-top:2px}}
+</style></head><body>
 
-        # Link_HTML: presente solo se la colonna esiste e la cella non è vuota
-        ha_link = "Link_HTML" in df_view.columns
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-label">Inviati</div>
+    <div class="kpi-val" style="color:#854F0B">{n_inv}</div></div>
+  <div class="kpi"><div class="kpi-label">Accettati</div>
+    <div class="kpi-val" style="color:#27500A">{n_acc}</div></div>
+  <div class="kpi"><div class="kpi-label">Scaduti</div>
+    <div class="kpi-val" style="color:#791F1F">{n_sca}</div></div>
+  <div class="kpi"><div class="kpi-label">Valore accettato</div>
+    <div class="kpi-val">{val_acc:,.0f} €</div></div>
+</div>
 
-        # Colonna PDF separata — contiene il link Drive solo dove disponibile
-        if ha_link:
-            links = df_view["Link_HTML"].fillna("").astype(str)
-            # Valore per la colonna PDF: link Drive se esiste, stringa vuota altrimenti
-            df_show["PDF"] = links.where(links.str.startswith("http"), "").values
+<div class="toolbar">
+  <input class="search" id="q" placeholder="Cerca cliente, codice, POD…">
+  <button class="fbtn on" onclick="fil('Tutti',this)">Tutti</button>
+  <button class="fbtn" onclick="fil('INVIATO',this)">Inviati</button>
+  <button class="fbtn" onclick="fil('ACCETTATO',this)">Accettati</button>
+  <button class="fbtn" onclick="fil('SCADUTO',this)">Scaduti</button>
+</div>
 
-        col_cfg = {
-            "Data":        st.column_config.TextColumn("Data",        width="small"),
-            "Codice":      st.column_config.TextColumn("Codice",      width="medium"),
-            "Versione_Di": st.column_config.TextColumn("Revisione di",width="medium"),
-            "Cliente":     st.column_config.TextColumn("Cliente",     width="large"),
-            "POD":         st.column_config.TextColumn("POD",         width="medium"),
-            "Totale":      st.column_config.NumberColumn("Totale €",  format="%.2f", width="small"),
-            "Stato Reale": st.column_config.TextColumn("Stato",       width="medium"),
-            "Data Firma":  st.column_config.TextColumn("Firmato il",  width="small"),
-        }
+<div class="table-wrap">
+<table>
+<thead><tr>
+  <th onclick="sort('data')">Data</th>
+  <th onclick="sort('cod')">Codice</th>
+  <th onclick="sort('cliente')">Cliente</th>
+  <th onclick="sort('pod')">POD</th>
+  <th onclick="sort('totale')" style="text-align:right">Totale €</th>
+  <th onclick="sort('stato')">Stato</th>
+  <th onclick="sort('firma')">Firmato il</th>
+  <th>Preventivo</th>
+</tr></thead>
+<tbody id="tb"></tbody>
+</table>
+<div class="footer">
+  <span id="cnt"></span>
+  <span>PolisEnergia — Archivio Preventivi</span>
+</div>
+</div>
 
-        if ha_link:
-            col_cfg["PDF"] = st.column_config.LinkColumn(
-                "Preventivo",
-                display_text="📄 Apri",
-                help="Clicca per aprire il preventivo HTML su Drive",
-                width="small",
-            )
+<script>
+const ALL = {json.dumps(righe, ensure_ascii=False)};
+let fStato='Tutti', sortCol='data', sortDir=1;
 
-        st.dataframe(df_show, use_container_width=True, hide_index=True, column_config=col_cfg)
+const badge = s => {{
+  const m={{ACCETTATO:'b-acc',INVIATO:'b-inv',SCADUTO:'b-sca'}};
+  const l={{ACCETTATO:'Accettato',INVIATO:'Inviato',SCADUTO:'Scaduto'}};
+  return `<span class="badge ${{m[s]||''}}">${{l[s]||s}}</span>`;
+}};
 
-        # ── EXPORT EXCEL ──────────────────────────────────────────────────────
+function render(){{
+  const q = document.getElementById('q').value.toLowerCase();
+  let rows = ALL.filter(r=>{{
+    const mq = !q || r.cliente.toLowerCase().includes(q) ||
+                r.cod.includes(q) || r.pod.toLowerCase().includes(q);
+    const ms = fStato==='Tutti' || r.stato===fStato;
+    return mq && ms;
+  }});
+  rows.sort((a,b)=>{{
+    let va=a[sortCol], vb=b[sortCol];
+    if(sortCol==='totale'){{ return (va-vb)*sortDir; }}
+    return String(va).localeCompare(String(vb),'it')*sortDir;
+  }});
+  document.getElementById('tb').innerHTML = rows.map(r=>`
+    <tr>
+      <td style="color:#8c8c8c;font-size:11px">${{r.data}}</td>
+      <td>
+        <div style="font-weight:500;font-size:12px;color:#141414">${{r.cod}}</div>
+        ${{r.ver && r.ver!='nan' ? `<div class="ver">rev. di ${{r.ver}}</div>` : ''}}
+      </td>
+      <td style="font-weight:500">${{r.cliente}}</td>
+      <td style="font-family:monospace;font-size:11px;color:#666">${{r.pod}}</td>
+      <td style="text-align:right;font-weight:500;font-variant-numeric:tabular-nums">
+        ${{r.totale.toLocaleString('it-IT',{{minimumFractionDigits:2}})}}
+      </td>
+      <td>${{badge(r.stato)}}</td>
+      <td style="color:#8c8c8c;font-size:11px">${{r.firma||'—'}}</td>
+      <td>${{r.link
+        ? `<a class="pdf-btn" href="${{r.link}}" target="_blank">📄 Apri</a>`
+        : '<span style="color:#ccc;font-size:11px">—</span>'}}</td>
+    </tr>`).join('');
+  document.getElementById('cnt').textContent =
+    `${{rows.length}} preventiv${{rows.length===1?'o':'i'}}`;
+
+  // Aggiorna frecce ordinamento
+  document.querySelectorAll('th').forEach(th=>th.classList.remove('asc','desc'));
+  const cols=['data','cod','cliente','pod','totale','stato','firma'];
+  const idx=cols.indexOf(sortCol);
+  if(idx>=0) document.querySelectorAll('th')[idx].classList.add(sortDir===1?'asc':'desc');
+}}
+
+function fil(s,btn){{
+  fStato=s;
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  render();
+}}
+
+function sort(col){{
+  if(sortCol===col) sortDir*=-1; else {{ sortCol=col; sortDir=1; }}
+  render();
+}}
+
+document.getElementById('q').addEventListener('input',render);
+render();
+</script></body></html>"""
+
+        # Altezza dinamica: header + righe (min 400, max 900)
+        h = min(900, max(400, 280 + len(df) * 42))
+        components.html(html_archivio, height=h, scrolling=True)
+
+        # ── EXPORT EXCEL (rimane in Streamlit) ────────────────────────────────
         buf_xls = io.BytesIO()
         export_cols = [c for c in ["Data", "Codice", "Versione_Di", "Cliente", "POD",
                                     "Totale", "Stato Reale", "Email", "Data Firma"]
-                       if c in df_view.columns]
-        df_view[export_cols].to_excel(buf_xls, index=False, engine="openpyxl")
+                       if c in df.columns]
+        df[export_cols].to_excel(buf_xls, index=False, engine="openpyxl")
         buf_xls.seek(0)
         st.download_button(
             label="📊 Esporta in Excel",
@@ -1519,34 +1643,22 @@ elif scelta == "📋 Archivio Preventivi":
             use_container_width=True,
         )
 
-        # ── METRICHE ──────────────────────────────────────────────────────────
-        st.divider()
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("🟡 Inviati",   len(df[df["Stato Reale"] == "INVIATO"]))
-        c2.metric("🟢 Accettati", len(df[df["Stato Reale"] == "ACCETTATO"]))
-        c3.metric("🔴 Scaduti",   len(df[df["Stato Reale"] == "SCADUTO"]))
-        try:
-            c4.metric("💶 Valore accettato",
-                      f"{df[df['Stato Reale'] == 'ACCETTATO']['Totale'].astype(float).sum():.2f} €")
-        except Exception:
-            pass
-
-        # ── REINVIO EMAIL / NUOVO OTP ─────────────────────────────────────────
+        # ── REINVIO EMAIL ──────────────────────────────────────────────────────
         st.divider()
         st.subheader("📨 Reinvia email a cliente")
 
-        reinviabili = df_view[
-            df_view["Stato Reale"].isin(["INVIATO", "SCADUTO"])
+        reinviabili = df[
+            df["Stato Reale"].isin(["INVIATO", "SCADUTO"])
         ]["Codice"].astype(str).tolist()
 
         if not reinviabili:
-            st.info("Nessun preventivo da reinviare nei risultati correnti.")
+            st.info("Nessun preventivo da reinviare.")
         else:
             cod_reinvio = st.selectbox("Seleziona preventivo:", reinviabili, key="sel_reinvio")
             row_r = df[df["Codice"].astype(str) == cod_reinvio]
 
             if not row_r.empty:
-                r = row_r.iloc[0]
+                r       = row_r.iloc[0]
                 nome_r  = str(r.get("Cliente", ""))
                 email_r = str(r.get("Email", ""))
                 pod_r   = str(r.get("POD", ""))
@@ -1557,21 +1669,16 @@ elif scelta == "📋 Archivio Preventivi":
                     value=email_r if email_r not in {"", "nan"} else "",
                     key="email_reinvio"
                 )
-
-                # Genera nuovo OTP per questo reinvio
-                otp_key = f"otp_reinvio_{cod_reinvio}"
+                otp_key      = f"otp_reinvio_{cod_reinvio}"
                 if otp_key not in st.session_state:
                     st.session_state[otp_key] = genera_otp()
-                nuovo_otp  = st.session_state[otp_key]
+                nuovo_otp    = st.session_state[otp_key]
                 link_reinvio = f"{APP_URL}/?codice={cod_reinvio}&otp={nuovo_otp}"
 
                 template = st.session_state.get("email_template",
-                    "Spett.le {nome},\n"
-                    "in allegato il preventivo n. {codice}.\n\n"
-                    "Per firmare digitalmente clicca qui: {link}\n"
-                    "OTP: {otp}\n\n"
-                    "Il link è valido per {giorni} giorni.\n\n"
-                    "Cordiali saluti,\nPolisEnergia srl"
+                    "Spett.le {nome},\nin allegato il preventivo n. {codice}.\n\n"
+                    "Per firmare digitalmente clicca qui: {link}\nOTP: {otp}\n\n"
+                    "Il link è valido per {giorni} giorni.\n\nCordiali saluti,\nPolisEnergia srl"
                 )
                 try:
                     testo_r = template.format(
@@ -1580,11 +1687,10 @@ elif scelta == "📋 Archivio Preventivi":
                         totale=str(r.get("Totale", "")), pod=pod_r,
                     )
                 except Exception:
-                    testo_r = (
-                        f"Spett.le {nome_r},\nin allegato il preventivo n. {cod_reinvio}.\n\n"
-                        f"Firma qui: {link_reinvio}\nOTP: {nuovo_otp}\n\n"
-                        f"Cordiali saluti,\nPolisEnergia srl"
-                    )
+                    testo_r = (f"Spett.le {nome_r},\nin allegato il preventivo n. {cod_reinvio}.\n\n"
+                               f"Firma qui: {link_reinvio}\nOTP: {nuovo_otp}\n\n"
+                               f"Cordiali saluti,\nPolisEnergia srl")
+
                 corpo_r = st.text_area("Testo email:", value=testo_r, height=160, key="corpo_reinvio")
 
                 if col_r2.button("🚀 REINVIA EMAIL", use_container_width=True, key="btn_reinvio"):
@@ -1594,35 +1700,34 @@ elif scelta == "📋 Archivio Preventivi":
                         try:
                             with st.spinner("Invio in corso..."):
                                 smtp = get_smtp_config()
-                                invia_email(
-                                    smtp=smtp,
-                                    to=email_reinvio.strip(),
-                                    subject=f"Preventivo PolisEnergia n. {cod_reinvio}",
-                                    body=corpo_r,
-                                )
-                            # Aggiorna OTP nel Sheet
+                                invia_email(smtp=smtp, to=email_reinvio.strip(),
+                                            subject=f"Preventivo PolisEnergia n. {cod_reinvio}",
+                                            body=corpo_r)
                             idx_r = df[df["Codice"].astype(str) == cod_reinvio].index[0]
                             df.at[idx_r, "Stato"] = "Inviato"
                             if "Email" in df.columns:
                                 df.at[idx_r, "Email"] = email_reinvio.strip()
                             conn.update(data=df.drop(columns=["Stato Reale"], errors="ignore"))
-                            # Reset OTP in session per forzare nuovo codice al prossimo reinvio
                             del st.session_state[otp_key]
-                            st.success(f"✅ Email reinviata con nuovo OTP a {email_reinvio}!")
+                            st.success(f"✅ Email reinviata a {email_reinvio}!")
                         except Exception as e:
                             st.error(f"Errore invio: {e}")
 
-        # ── STORICO VERSIONI ──────────────────────────────────────────────────
+        # ── STORICO REVISIONI ─────────────────────────────────────────────────
         if "Versione_Di" in df.columns and df["Versione_Di"].notna().any():
-            st.divider()
-            st.subheader("🔄 Storico revisioni")
-            pod_con_rev = df[df["Versione_Di"].astype(str).str.strip() != ""]["POD"].unique()
-            if len(pod_con_rev):
-                pod_sel = st.selectbox("POD:", pod_con_rev, key="pod_storico")
-                catena = df[df["POD"].astype(str) == pod_sel][
-                    ["Data", "Codice", "Versione_Di", "Totale", "Stato Reale"]
-                ].sort_values("Data")
-                st.dataframe(catena, use_container_width=True, hide_index=True)
+            ver_non_vuote = df["Versione_Di"].astype(str).str.strip()
+            if (ver_non_vuote != "").any() and (ver_non_vuote != "nan").any():
+                st.divider()
+                st.subheader("🔄 Storico revisioni")
+                pod_con_rev = df[
+                    ver_non_vuote.isin(ver_non_vuote[ver_non_vuote != ""].values)
+                ]["POD"].unique()
+                if len(pod_con_rev):
+                    pod_sel = st.selectbox("POD:", pod_con_rev, key="pod_storico")
+                    catena  = df[df["POD"].astype(str) == pod_sel][
+                        ["Data", "Codice", "Versione_Di", "Totale", "Stato Reale"]
+                    ].sort_values("Data")
+                    st.dataframe(catena, use_container_width=True, hide_index=True)
 
     except Exception as e:
         st.error("Impossibile caricare l'archivio.")
