@@ -958,38 +958,59 @@ elif scelta == "Preventivo di Connessione":
     passaggio_mt = False
     t_partenza   = "BT"
 
+    no_lim_attuale = False
+    richiesta_no_lim = False
+
     if "Potenza" in pratica or "Subentro" in pratica:
         col1, col2 = st.columns(2)
         if tipo_ut == "Altri Usi":
             t_partenza   = col1.selectbox("Tensione", ["BT", "MT"], key="t")
             if t_partenza == "BT":
                 passaggio_mt = col1.checkbox("Passaggio a MT?", key="mt")
-        p_att = col1.number_input("kW Attuali",   value=0.0, key="pa")
-        p_new = col2.number_input("kW Richiesti", value=0.0, key="pn")
+        p_att = col1.number_input("kW Attuali (Contrattuali)", value=0.0, key="pa")
+        p_new = col2.number_input("kW Richiesti (Contrattuali)", value=0.0, key="pn")
+        
+        # --- LOGICA FRANCHIGIA INVERTITA ---
+        
+        if tipo_ut == "Altri Usi" and p_new <= 30:
+            st.info("⚙️ Gestione Limitatore (Franchigia 10%)")
+            cx1, cx2 = st.columns(2)
+            # Verifica se il POD parte già "puro" o con franchigia
+            no_lim_attuale = cx1.checkbox("Stato Attuale: POD SENZA limitatore", value=False, help="Spunta se il cliente ha già il prelievo libero (senza +10%)")
+            # Scelta per la nuova configurazione
+            richiesta_no_lim = cx2.checkbox("Nuova Config: Rimuovere Limitatore", value=False, help="Spunta per richiedere potenza a prelievo libero (Senza franchigia)")
 
     elif "Nuova" in pratica:
         p_new  = st.number_input("kW Richiesti",  value=0.0, key="pnc")
         c_dist = st.number_input("Quota Distanza €", 0.0,    key="dist")
-
+        if tipo_ut == "Altri Usi" and p_new <= 30:
+            richiesta_no_lim = st.checkbox("Richiedere potenza a prelievo LIBERO (Senza franchigia)", value=False)
     elif "Spostamento" in pratica:
         s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
         c_dist = (SPOSTAMENTO_10MT if "Entro" in s_dist
                   else st.number_input("Costo Rilievo €", 0.0, key="sdc"))
 
-    # Franchigia
-    limitatore = False
-    if tipo_ut == "Altri Usi" and 15 < p_new <= 30:
-        limitatore = st.checkbox("Abilita Limitatore (Franchigia +10%)", value=True, key="lim_flag")
-
     # Calcolo delta e tariffa
     if p_new > 0:
-        applica_franchigia = tipo_ut == "Domestico" or (tipo_ut == "Altri Usi" and limitatore)
-        if p_new <= 30 and applica_franchigia:
+        # Calcolo Nuova Potenza (v_new)
+        # Se Domestico o se Altri Usi NON ha chiesto la rimozione -> +10%
+        if p_new <= 30 and (tipo_ut == "Domestico" or not richiesta_no_lim):
             v_new = round(p_new * 1.1, 1)
-            v_att = round(p_att * 1.1, 1) if p_att > 0 else 0.0
         else:
-            v_new, v_att = p_new, p_att
+            v_new = p_new
+        # Calcolo Potenza Attuale (v_att)
+        if p_att > 0:
+            # Se Domestico o se Altri Usi ha già il limitatore (not no_lim_attuale) -> +10%
+            if tipo_ut == "Domestico" or not no_lim_attuale:
+                v_att = round(p_att * 1.1, 1)
+            else:
+                v_att = p_att
+        else:
+            v_att = 0.0
+        # Calcolo del Delta Reale per Quota Potenza
         delta = round(v_new - v_att, 1)
+        if delta < 0: delta = 0.0
+
 
         if "Nuova" in pratica:
             tar = TIC_ALTRI_USI_BT
