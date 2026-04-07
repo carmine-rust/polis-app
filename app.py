@@ -190,10 +190,21 @@ if codice_param:
         stato_attuale  = str(df.at[idx, "Stato"]).strip()
 
         if not otp_u:
-            st.info(f"Visualizzazione in modalità anteprima per il cliente: **{df.at[idx, 'Cliente']}**")
-            st.warning("Per firmare il documento è necessario accedere tramite il link inviato via email.")
-            st.write(f"**POD:** {df.at[idx, 'POD']}")
-            st.write(f"**Totale:** {df.at[idx, 'Totale']} EUR")
+            st.info(f"🔍 Modalità Anteprima Operatore - Cliente: **{nome_cliente}**")
+            dati_per_html = df.iloc[idx].to_dict()
+            try:
+                codice_html = genera_html_polis(dati_per_html)
+                st.components.v1.html(codice_html, height=900, scrolling=True)
+                st.download_button(
+                    label="📥 Scarica file HTML",
+                    data=codice_html,
+                    file_name=f"Preventivo_{cod_u}.html",
+                    mime="text/html"
+                )
+            except Exception as e:
+                st.error(f"Errore nella generazione grafica: {e}")
+                st.write("Dati grezzi preventivo:", dati_per_html)
+            
             st.stop()
             
         # Già firmato
