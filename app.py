@@ -1071,13 +1071,21 @@ elif scelta == "Preventivo di Connessione":
                 }
                 st.session_state.pdf_bytes = genera_pdf_polis(dati_preventivo)
                 html_preventivo            = genera_html_polis(dati_preventivo)
-                html_b64                   = _b64.b64encode(
-                    html_preventivo.encode("utf-8")
+
+                # Comprimi con zlib prima di Base64 — riduce ~75% la dimensione
+                import zlib
+                html_b64 = _b64.b64encode(
+                    zlib.compress(html_preventivo.encode("utf-8"), level=9)
                 ).decode("utf-8")
 
+                # Verifica dimensione prima di scrivere (limite GSheets: 50.000 char)
+                if len(html_b64) > 49000:
+                    html_b64 = ""  # troppo grande — saltiamo l'HTML, il PDF resta disponibile
+                    st.warning("⚠️ HTML troppo grande per il foglio — solo PDF disponibile.")
+
                 try:
-                    conn = st.connection("gsheets", type=GSheetsConnection)
-                    df   = conn.read(ttl=0)
+                    conn       = st.connection("gsheets", type=GSheetsConnection)
+                    df_current = conn.read(ttl=0)   # leggiamo PRIMA di modificare
                     nuova_riga = pd.DataFrame([{
                         "Data":        datetime.now().strftime("%d/%m/%Y"),
                         "Codice":      str(cod),
@@ -1089,7 +1097,8 @@ elif scelta == "Preventivo di Connessione":
                         "Email":       email_dest,
                         "HTML_B64":    html_b64,
                     }])
-                    conn.update(data=pd.concat([df, nuova_riga], ignore_index=True))
+                    df_finale = pd.concat([df_current, nuova_riga], ignore_index=True)
+                    conn.update(data=df_finale)
                     st.success(f"✅ Preventivo {cod} generato e archiviato!")
                 except Exception as e:
                     st.warning(f"PDF generato, ma errore salvataggio Google Sheets: {e}")
@@ -1226,7 +1235,19 @@ elif scelta == "📋 Archivio Preventivi":
             if ha_link:
                 b64v = str(r.get("HTML_B64", "")).strip()
                 if b64v and b64v not in {"", "nan"}:
-                    data_uri = f"data:text/html;base64,{b64v}"
+                    try:
+                        import zlib
+                        # Prova prima a decomprimere (nuovi preventivi compressi)
+                        html_dec = zlib.decompress(_b64.b64decode(b64v)).decode("utf-8")
+                    except Exception:
+                        # Fallback: Base64 semplice (preventivi vecchi non compressi)
+                        try:
+                            html_dec = _b64.b64decode(b64v).decode("utf-8")
+                        except Exception:
+                            html_dec = ""
+                    if html_dec:
+                        b64_clean = _b64.b64encode(html_dec.encode("utf-8")).decode("utf-8")
+                        data_uri  = f"data:text/html;base64,{b64_clean}"
             righe.append({
                 "data":    str(r.get("Data",       "")).strip(),
                 "cod":     str(r.get("Codice",     "")).strip().replace(".0", ""),
