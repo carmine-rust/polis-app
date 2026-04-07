@@ -422,8 +422,8 @@ def carica_html_su_drive(html: str, nome_file: str) -> str:
         body={"type": "anyone", "role": "reader"},
     ).execute()
 
-    # Link diretto di visualizzazione (apre il browser come pagina HTML)
-    return f"https://drive.google.com/uc?export=view&id={file_id}"
+    # Link visualizzatore Drive — funziona senza login con file condiviso pubblicamente
+    return f"https://drive.google.com/file/d/{file_id}/view"
 
 
 def genera_html_polis(d: dict) -> str:
@@ -958,7 +958,7 @@ elif scelta == "Preventivo di Connessione":
     passaggio_mt = False
     t_partenza   = "BT"
 
-    no_lim_attuale = False
+    no_lim_attuale   = False
     richiesta_no_lim = False
 
     if "Potenza" in pratica or "Subentro" in pratica:
@@ -967,24 +967,30 @@ elif scelta == "Preventivo di Connessione":
             t_partenza   = col1.selectbox("Tensione", ["BT", "MT"], key="t")
             if t_partenza == "BT":
                 passaggio_mt = col1.checkbox("Passaggio a MT?", key="mt")
-        p_att = col1.number_input("kW Attuali (Contrattuali)", value=0.0, key="pa")
+        p_att = col1.number_input("kW Attuali (Contrattuali)",   value=0.0, key="pa")
         p_new = col2.number_input("kW Richiesti (Contrattuali)", value=0.0, key="pn")
-        
+
         # --- LOGICA FRANCHIGIA INVERTITA ---
-        
         if tipo_ut == "Altri Usi" and p_new <= 30:
             st.info("⚙️ Gestione Limitatore (Franchigia 10%)")
             cx1, cx2 = st.columns(2)
-            # Verifica se il POD parte già "puro" o con franchigia
-            no_lim_attuale = cx1.checkbox("Stato Attuale: POD SENZA limitatore", value=False, help="Spunta se il cliente ha già il prelievo libero (senza +10%)")
-            # Scelta per la nuova configurazione
-            richiesta_no_lim = cx2.checkbox("Nuova Config: Rimuovere Limitatore", value=False, help="Spunta per richiedere potenza a prelievo libero (Senza franchigia)")
+            no_lim_attuale   = cx1.checkbox(
+                "Stato Attuale: POD SENZA limitatore", value=False,
+                help="Spunta se il cliente ha già il prelievo libero (senza +10%)"
+            )
+            richiesta_no_lim = cx2.checkbox(
+                "Nuova Config: Rimuovere Limitatore", value=False,
+                help="Spunta per richiedere potenza a prelievo libero (senza franchigia)"
+            )
 
     elif "Nuova" in pratica:
-        p_new  = st.number_input("kW Richiesti",  value=0.0, key="pnc")
-        c_dist = st.number_input("Quota Distanza €", 0.0,    key="dist")
+        p_new  = st.number_input("kW Richiesti",    value=0.0, key="pnc")
+        c_dist = st.number_input("Quota Distanza €", 0.0,      key="dist")
         if tipo_ut == "Altri Usi" and p_new <= 30:
-            richiesta_no_lim = st.checkbox("Richiedere potenza a prelievo LIBERO (Senza franchigia)", value=False)
+            richiesta_no_lim = st.checkbox(
+                "Richiedere potenza a prelievo LIBERO (senza franchigia)", value=False
+            )
+
     elif "Spostamento" in pratica:
         s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
         c_dist = (SPOSTAMENTO_10MT if "Entro" in s_dist
@@ -992,25 +998,22 @@ elif scelta == "Preventivo di Connessione":
 
     # Calcolo delta e tariffa
     if p_new > 0:
-        # Calcolo Nuova Potenza (v_new)
-        # Se Domestico o se Altri Usi NON ha chiesto la rimozione -> +10%
+        # Nuova potenza: +10% se Domestico o se Altri Usi non ha chiesto rimozione limitatore
         if p_new <= 30 and (tipo_ut == "Domestico" or not richiesta_no_lim):
             v_new = round(p_new * 1.1, 1)
         else:
             v_new = p_new
-        # Calcolo Potenza Attuale (v_att)
+
+        # Potenza attuale: +10% se Domestico o se Altri Usi ha ancora il limitatore
         if p_att > 0:
-            # Se Domestico o se Altri Usi ha già il limitatore (not no_lim_attuale) -> +10%
             if tipo_ut == "Domestico" or not no_lim_attuale:
                 v_att = round(p_att * 1.1, 1)
             else:
                 v_att = p_att
         else:
             v_att = 0.0
-        # Calcolo del Delta Reale per Quota Potenza
-        delta = round(v_new - v_att, 1)
-        if delta < 0: delta = 0.0
 
+        delta = max(round(v_new - v_att, 1), 0.0)
 
         if "Nuova" in pratica:
             tar = TIC_ALTRI_USI_BT
