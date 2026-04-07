@@ -529,7 +529,10 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2.service_account import Credentials as SACredentials
 
-DRIVE_FOLDER_ID = st.secrets.get("DRIVE_FOLDER_ID", "")
+DRIVE_FOLDER_ID = (
+    st.secrets.get("DRIVE_FOLDER_ID", "")
+    or st.secrets.get("connections", {}).get("gsheets", {}).get("DRIVE_FOLDER_ID", "")
+)
 
 
 def carica_html_su_drive(html: str, nome_file: str) -> str:
