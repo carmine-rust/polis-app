@@ -537,16 +537,26 @@ DRIVE_FOLDER_ID = (
 
 def carica_html_su_drive(html: str, nome_file: str) -> str:
     """Carica l'HTML su Drive e restituisce il link /file/d/ID/view (nessun login richiesto)."""
-    info   = dict(st.secrets["gcp_service_account"])
-    creds  = SACredentials.from_service_account_info(
+    # Tutte le credenziali sono in [connections.gsheets] — le leggiamo da lì
+    # escludendo le chiavi non pertinenti al service account
+    ESCLUDI = {"DRIVE_FOLDER_ID", "spreadsheet", "worksheet", "url"}
+    raw  = dict(st.secrets["connections"]["gsheets"])
+    info = {k: v for k, v in raw.items() if k not in ESCLUDI}
+
+    if "private_key" not in info:
+        raise ValueError(
+            "Credenziali service account non trovate in [connections.gsheets]. "
+            "Verifica che 'private_key' sia presente in secrets.toml."
+        )
+
+    creds = SACredentials.from_service_account_info(
         info, scopes=["https://www.googleapis.com/auth/drive"]
     )
-    svc    = build("drive", "v3", credentials=creds, cache_discovery=False)
-    meta   = {"name": nome_file, "parents": [DRIVE_FOLDER_ID], "mimeType": "text/html"}
-    media  = MediaIoBaseUpload(io.BytesIO(html.encode("utf-8")), mimetype="text/html", resumable=False)
-    fid    = svc.files().create(body=meta, media_body=media, fields="id").execute().get("id")
+    svc   = build("drive", "v3", credentials=creds, cache_discovery=False)
+    meta  = {"name": nome_file, "parents": [DRIVE_FOLDER_ID], "mimeType": "text/html"}
+    media = MediaIoBaseUpload(io.BytesIO(html.encode("utf-8")), mimetype="text/html", resumable=False)
+    fid   = svc.files().create(body=meta, media_body=media, fields="id").execute().get("id")
     svc.permissions().create(fileId=fid, body={"type": "anyone", "role": "reader"}).execute()
-    # /file/d/ID/view apre il visualizzatore Drive senza richiedere login
     return f"https://drive.google.com/file/d/{fid}/view"
 
 
