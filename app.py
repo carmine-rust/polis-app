@@ -1477,6 +1477,12 @@ elif scelta == "📋 Archivio Preventivi":
         # Link_HTML: presente solo se la colonna esiste e la cella non è vuota
         ha_link = "Link_HTML" in df_view.columns
 
+        # Colonna PDF separata — contiene il link Drive solo dove disponibile
+        if ha_link:
+            links = df_view["Link_HTML"].fillna("").astype(str)
+            # Valore per la colonna PDF: link Drive se esiste, stringa vuota altrimenti
+            df_show["PDF"] = links.where(links.str.startswith("http"), "").values
+
         col_cfg = {
             "Data":        st.column_config.TextColumn("Data",        width="small"),
             "Codice":      st.column_config.TextColumn("Codice",      width="medium"),
@@ -1489,19 +1495,12 @@ elif scelta == "📋 Archivio Preventivi":
         }
 
         if ha_link:
-            # Costruiamo la colonna Codice: link Drive se presente, altrimenti testo
-            links = df_view["Link_HTML"].fillna("").astype(str)
-            codici = df_view["Codice"].astype(str)
-            df_show["Codice"] = links.where(links.str.startswith("http"), codici).values
-
-            # Usiamo LinkColumn solo se almeno un link è presente
-            if links.str.startswith("http").any():
-                col_cfg["Codice"] = st.column_config.LinkColumn(
-                    "Preventivo",
-                    display_text=r"(.+)",
-                    help="Clicca per aprire il preventivo HTML su Drive",
-                    width="medium",
-                )
+            col_cfg["PDF"] = st.column_config.LinkColumn(
+                "Preventivo",
+                display_text="📄 Apri",
+                help="Clicca per aprire il preventivo HTML su Drive",
+                width="small",
+            )
 
         st.dataframe(df_show, use_container_width=True, hide_index=True, column_config=col_cfg)
 
