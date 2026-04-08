@@ -957,7 +957,9 @@ elif scelta == "Preventivo di Connessione":
     c3, c4 = st.columns([2, 1])
     pratica  = c3.selectbox(
         "Tipo Pratica",
-        ["Aumento Potenza", "Subentro con Modifica", "Nuova Connessione", "Spostamento Contatore"],
+        ["Aumento Potenza", "Subentro con Modifica",
+         "Attivazione su Preposato con Modifica",
+         "Nuova Connessione", "Spostamento Contatore"],
         key="prat"
     )
     tipo_ut = c4.radio("Utenza", ["Domestico", "Altri Usi"], horizontal=True, key="ut")
@@ -970,7 +972,7 @@ elif scelta == "Preventivo di Connessione":
     no_lim_attuale   = False
     richiesta_no_lim = False
 
-    if "Potenza" in pratica or "Subentro" in pratica:
+    if "Potenza" in pratica or "Subentro" in pratica or "Attivazione" in pratica:
         col1, col2 = st.columns(2)
         if tipo_ut == "Altri Usi":
             t_partenza   = col1.selectbox("Tensione", ["BT", "MT"], key="t")
