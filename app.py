@@ -381,7 +381,10 @@ def genera_pdf_polis(d: dict) -> bytes:
     pdf.set_text_color(*GRAY_MUTED)
     data_str  = datetime.now().strftime("%d/%m/%Y")
     scad_str  = (datetime.now() + timedelta(days=OTP_SCADENZA_GIORNI)).strftime("%d/%m/%Y")
-    pdf.cell(0, 5.5, f"Emesso il {data_str}  —  Valido fino al {scad_str}",
+    pratica_label = d.get("Pratica", "")
+    pdf.cell(0, 5.5,
+             f"Emesso il {data_str}  —  Valido fino al {scad_str}"
+             + (f"  —  {pratica_label}" if pratica_label else ""),
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     # ── BOX DATI CLIENTE ──────────────────────────────────────────────────────
@@ -419,6 +422,39 @@ def genera_pdf_polis(d: dict) -> bytes:
     pdf.set_text_color(*GRAY_MUTED)
     pdf.cell(74, 4, d['Indirizzo'], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
+    # ── Costruzione voci in base al tipo pratica ──────────────────────────────
+    pratica  = d.get("Pratica", "")
+    delta    = d.get("Delta",   0.0)
+    tar      = d.get("Tariffa", 0.0)
+    c_dist   = d.get("C_Dist",  0.0)
+    pass_mt  = d.get("Passaggio_MT", False)
+
+    if "Spostamento" in pratica:
+        entro = c_dist == SPOSTAMENTO_10MT
+        desc_tec = f"Quota Spostamento {'entro' if entro else 'oltre'} 10 mt"
+        voci_tec = [(desc_tec, d['C_Tec'])]
+    elif "Nuova" in pratica:
+        voci_tec = []
+        quota_pot = delta * tar
+        if quota_pot:
+            voci_tec.append((f"Quota Potenza  ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot))
+        if c_dist:
+            voci_tec.append(("Quota Distanza", c_dist))
+        if pass_mt:
+            voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
+        if not voci_tec:
+            voci_tec = [("Quota Tecnica", d['C_Tec'])]
+    else:
+        # Aumento Potenza / Subentro con Modifica
+        voci_tec = [(f"Quota Potenza  ({tar:.2f} €/kW × {delta:.1f} kW)", d['C_Tec'] - (COSTO_PASSAGGIO_MT if pass_mt else 0))]
+        if pass_mt:
+            voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
+
+    voci = voci_tec + [
+        ("Oneri Amministrativi",   d['Oneri']),
+        ("Oneri Gestione Pratica", d['Gestione']),
+    ]
+
     # ── TABELLA VOCI ──────────────────────────────────────────────────────────
     pdf.ln(9)
     pdf.set_draw_color(220, 225, 232)
@@ -432,11 +468,6 @@ def genera_pdf_polis(d: dict) -> bytes:
     pdf.cell(48,  9, "Importo", border=0, fill=True, align='R',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    voci = [
-        ("Quota Tecnica",           d['C_Tec']),
-        ("Oneri Amministrativi",    d['Oneri']),
-        ("Oneri Gestione Pratica",  d['Gestione']),
-    ]
     for i, (voce, importo) in enumerate(voci):
         bg = GRAY_BG if i % 2 == 0 else WHITE
         pdf.set_fill_color(*bg)
@@ -534,16 +565,41 @@ def genera_html_polis(d: dict) -> str:
     data_str = datetime.now().strftime("%d/%m/%Y")
     scad_str = (datetime.now() + timedelta(days=OTP_SCADENZA_GIORNI)).strftime("%d/%m/%Y")
 
-    # Header: testo invece del logo PNG — il Base64 dell'immagine pesa 30-40KB
-    # e farebbe superare il limite di 50.000 caratteri per cella di Google Sheets.
-    # Il logo rimane nel PDF; nell'HTML usiamo il nome testuale.
+    # Header: testo invece del logo PNG
     logo_tag = '<div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:.5px;">PolisEnergia srl</div>'
 
-    voci = [
-        ("Quota Tecnica",          d['C_Tec']),
+    # ── Voci in base al tipo pratica ──────────────────────────────────────────
+    pratica  = d.get("Pratica", "")
+    delta    = d.get("Delta",   0.0)
+    tar      = d.get("Tariffa", 0.0)
+    c_dist   = d.get("C_Dist",  0.0)
+    pass_mt  = d.get("Passaggio_MT", False)
+
+    if "Spostamento" in pratica:
+        entro = c_dist == SPOSTAMENTO_10MT
+        voci_tec = [(f"Quota Spostamento {'entro' if entro else 'oltre'} 10 mt", d['C_Tec'])]
+    elif "Nuova" in pratica:
+        voci_tec = []
+        quota_pot = delta * tar
+        if quota_pot:
+            voci_tec.append((f"Quota Potenza ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot))
+        if c_dist:
+            voci_tec.append(("Quota Distanza", c_dist))
+        if pass_mt:
+            voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
+        if not voci_tec:
+            voci_tec = [("Quota Tecnica", d['C_Tec'])]
+    else:
+        quota_pot = d['C_Tec'] - (COSTO_PASSAGGIO_MT if pass_mt else 0)
+        voci_tec = [(f"Quota Potenza ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot)]
+        if pass_mt:
+            voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
+
+    voci = voci_tec + [
         ("Oneri Amministrativi",   d['Oneri']),
         ("Oneri Gestione Pratica", d['Gestione']),
     ]
+
     righe_voci = ""
     for i, (voce, importo) in enumerate(voci):
         bg = "#f7f8fa" if i % 2 == 0 else "#ffffff"
@@ -553,6 +609,8 @@ def genera_html_polis(d: dict) -> str:
             f'<td style="padding:8px 12px;text-align:right;border-bottom:1px solid #e2e6ec;">'
             f'{importo:.2f} EUR</td></tr>'
         )
+
+    subtitle_extra = f" &nbsp;—&nbsp; {pratica}" if pratica else ""
 
     return f"""<!DOCTYPE html>
 <html lang="it"><head>
@@ -605,7 +663,7 @@ def genera_html_polis(d: dict) -> str:
   <div class="accent"></div>
   <div class="body">
     <p class="title">Preventivo n. {d['Codice']}</p>
-    <p class="subtitle">Emesso il {data_str} &nbsp;—&nbsp; Valido fino al {scad_str}</p>
+    <p class="subtitle">Emesso il {data_str} &nbsp;—&nbsp; Valido fino al {scad_str}{subtitle_extra}</p>
     <div class="cliente-box">
       <div>
         <div class="cliente-label">Spett.le</div>
@@ -1063,6 +1121,14 @@ elif scelta == "Preventivo di Connessione":
                     "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest,
                     "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e,
                     "Totale": totale, "IBAN": IBAN_LABEL,
+                    # Dettagli pratica per le voci del documento
+                    "Pratica":      pratica,
+                    "Delta":        delta,
+                    "Tariffa":      tar,
+                    "P_New":        p_new,
+                    "P_Att":        p_att,
+                    "C_Dist":       c_dist,
+                    "Passaggio_MT": passaggio_mt,
                 }
                 st.session_state.pdf_bytes = genera_pdf_polis(dati_preventivo)
                 html_preventivo            = genera_html_polis(dati_preventivo)
