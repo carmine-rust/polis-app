@@ -1028,10 +1028,11 @@ elif scelta == "Preventivo di Connessione":
 
         if "Nuova" in pratica:
             tar = TIC_ALTRI_USI_BT
-        elif tipo_ut == "Domestico" and p_new <= 6:
-            tar = TIC_DOMESTICO_LE6
         elif t_partenza == "MT" or passaggio_mt:
             tar = TIC_MT
+        elif tipo_ut == "Domestico" and p_new <= 6 and "Potenza" in pratica:
+            # Tariffa agevolata solo per Aumento Potenza domestico ≤6kW
+            tar = TIC_DOMESTICO_LE6
         else:
             tar = TIC_ALTRI_USI_BT
 
