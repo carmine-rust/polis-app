@@ -1451,6 +1451,7 @@ tr:hover td{{background:#fafbfc}}
   <th>Preventivo</th>
 </tr></thead>
 <tbody id="tb"></tbody>
+        <tr id="expand-row" style="display:none"></tr>
 </table>
 <div class="footer">
   <span id="cnt"></span>
@@ -1468,6 +1469,8 @@ const badge = s => {{
   return `<span class="badge ${{m[s]||''}}">${{l[s]||s}}</span>`;
 }};
 
+let mostraTutti = false;
+
 function render(){{
   const q = document.getElementById('q').value.toLowerCase();
   let rows = ALL.filter(r=>{{
@@ -1481,7 +1484,11 @@ function render(){{
     if(sortCol==='totale'){{ return (va-vb)*sortDir; }}
     return String(va).localeCompare(String(vb),'it')*sortDir;
   }});
-  document.getElementById('tb').innerHTML = rows.map(r=>`
+
+  const totale = rows.length;
+  const visibili = mostraTutti ? rows : rows.slice(0, 10);
+
+  document.getElementById('tb').innerHTML = visibili.map(r=>`
     <tr>
       <td style="color:#8c8c8c;font-size:11px">${{r.data}}</td>
       <td>
@@ -1499,14 +1506,36 @@ function render(){{
         ? `<button class="pdf-btn" onclick="apriHTML('${{r.link}}')">📄 Apri</button>`
         : '<span style="color:#ccc;font-size:11px">—</span>'}}</td>
     </tr>`).join('');
+
+  // Riga espandi/comprimi
+  const expandRow = document.getElementById('expand-row');
+  if(totale > 10){{
+    expandRow.style.display = '';
+    expandRow.innerHTML = `<td colspan="8" style="text-align:center;padding:10px 0;border-top:1px solid #e2e6ec;">
+      <button onclick="toggleMostraTutti()" style="background:none;border:0.5px solid #d0d4dc;
+        border-radius:6px;padding:5px 18px;font-size:12px;color:#555;cursor:pointer;">
+        ${{mostraTutti
+          ? '▲ Mostra solo ultimi 10'
+          : `▼ Mostra tutti i ${{totale}} preventivi`}}
+      </button>
+    </td>`;
+  }} else {{
+    expandRow.style.display = 'none';
+  }}
+
   document.getElementById('cnt').textContent =
-    `${{rows.length}} preventiv${{rows.length===1?'o':'i'}}`;
+    `${{mostraTutti || totale<=10 ? totale : '10 di '+totale}} preventiv${{totale===1?'o':'i'}}`;
 
   // Aggiorna frecce ordinamento
   document.querySelectorAll('th').forEach(th=>th.classList.remove('asc','desc'));
   const cols=['data','cod','cliente','pod','totale','stato','firma'];
   const idx=cols.indexOf(sortCol);
   if(idx>=0) document.querySelectorAll('th')[idx].classList.add(sortDir===1?'asc':'desc');
+}}
+
+function toggleMostraTutti(){{
+  mostraTutti = !mostraTutti;
+  render();
 }}
 
 function apriHTML(b64url) {{
@@ -1537,8 +1566,8 @@ document.getElementById('q').addEventListener('input',render);
 render();
 </script></body></html>"""
 
-        # Altezza dinamica: header + righe (min 400, max 900)
-        h = min(900, max(400, 280 + len(df) * 42))
+        # Altezza: fissa per 10 righe + header + footer + toolbar
+        h = min(900, max(400, 280 + min(len(df), 10) * 44))
         components.html(html_archivio, height=h, scrolling=True)
 
         # ── EXPORT EXCEL (rimane in Streamlit) ────────────────────────────────
