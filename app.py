@@ -425,9 +425,11 @@ def genera_pdf_polis(d: dict) -> bytes:
     # ── Costruzione voci in base al tipo pratica ──────────────────────────────
     pratica  = d.get("Pratica", "")
     delta    = d.get("Delta",   0.0)
-    tar      = d.get("Tariffa", 0.0)
-    c_dist   = d.get("C_Dist",  0.0)
-    pass_mt  = d.get("Passaggio_MT", False)
+    tar            = d.get("Tariffa", 0.0)
+    c_dist         = d.get("C_Dist",  0.0)
+    pass_mt        = d.get("Passaggio_MT", False)
+    tipo_fornitura = d.get("Tipo_Fornitura", "Permanente")
+    p_new_d        = d.get("P_New", 0.0)
 
     if "Spostamento" in pratica:
         entro = c_dist == SPOSTAMENTO_10MT
@@ -435,17 +437,24 @@ def genera_pdf_polis(d: dict) -> bytes:
         voci_tec = [(desc_tec, d['C_Tec'])]
     elif "Nuova" in pratica:
         voci_tec = []
-        quota_pot = delta * tar
-        if quota_pot:
-            voci_tec.append((f"Quota Potenza  ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot))
-        if c_dist:
-            voci_tec.append(("Quota Distanza", c_dist))
-        if pass_mt:
-            voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
-        if not voci_tec:
-            voci_tec = [("Quota Tecnica", d['C_Tec'])]
+        if tipo_fornitura == "Temporanea":
+            if p_new_d <= 40:
+                attr = "con attraversamento stradale" if c_dist == 280.01 else "senza attraversamento stradale"
+                voci_tec = [(f"Fornitura Temporanea ({attr})", d['C_Tec'])]
+            else:
+                voci_tec = [(f"Fornitura Temporanea >40 kW (quota distributore)", d['C_Tec'])]
+        else:
+            quota_pot = delta * tar
+            if quota_pot:
+                voci_tec.append((f"Quota Potenza  ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot))
+            if c_dist:
+                voci_tec.append(("Quota Distanza", c_dist))
+            if pass_mt:
+                voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
+            if not voci_tec:
+                voci_tec = [("Quota Tecnica", d['C_Tec'])]
     else:
-        # Aumento Potenza / Subentro con Modifica
+        # Aumento Potenza / Subentro / Attivazione
         voci_tec = [(f"Quota Potenza  ({tar:.2f} €/kW × {delta:.1f} kW)", d['C_Tec'] - (COSTO_PASSAGGIO_MT if pass_mt else 0))]
         if pass_mt:
             voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
@@ -569,26 +578,35 @@ def genera_html_polis(d: dict) -> str:
     logo_tag = '<div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:.5px;">PolisEnergia srl</div>'
 
     # ── Voci in base al tipo pratica ──────────────────────────────────────────
-    pratica  = d.get("Pratica", "")
-    delta    = d.get("Delta",   0.0)
-    tar      = d.get("Tariffa", 0.0)
-    c_dist   = d.get("C_Dist",  0.0)
-    pass_mt  = d.get("Passaggio_MT", False)
+    pratica        = d.get("Pratica", "")
+    delta          = d.get("Delta",   0.0)
+    tar            = d.get("Tariffa", 0.0)
+    c_dist         = d.get("C_Dist",  0.0)
+    pass_mt        = d.get("Passaggio_MT", False)
+    tipo_fornitura = d.get("Tipo_Fornitura", "Permanente")
+    p_new_d        = d.get("P_New", 0.0)
 
     if "Spostamento" in pratica:
         entro = c_dist == SPOSTAMENTO_10MT
         voci_tec = [(f"Quota Spostamento {'entro' if entro else 'oltre'} 10 mt", d['C_Tec'])]
     elif "Nuova" in pratica:
         voci_tec = []
-        quota_pot = delta * tar
-        if quota_pot:
-            voci_tec.append((f"Quota Potenza ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot))
-        if c_dist:
-            voci_tec.append(("Quota Distanza", c_dist))
-        if pass_mt:
-            voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
-        if not voci_tec:
-            voci_tec = [("Quota Tecnica", d['C_Tec'])]
+        if tipo_fornitura == "Temporanea":
+            if p_new_d <= 40:
+                attr = "con attraversamento stradale" if c_dist == 280.01 else "senza attraversamento stradale"
+                voci_tec = [(f"Fornitura Temporanea ({attr})", d['C_Tec'])]
+            else:
+                voci_tec = [(f"Fornitura Temporanea >40 kW (quota distributore)", d['C_Tec'])]
+        else:
+            quota_pot = delta * tar
+            if quota_pot:
+                voci_tec.append((f"Quota Potenza ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot))
+            if c_dist:
+                voci_tec.append(("Quota Distanza", c_dist))
+            if pass_mt:
+                voci_tec.append(("Passaggio a MT", COSTO_PASSAGGIO_MT))
+            if not voci_tec:
+                voci_tec = [("Quota Tecnica", d['C_Tec'])]
     else:
         quota_pot = d['C_Tec'] - (COSTO_PASSAGGIO_MT if pass_mt else 0)
         voci_tec = [(f"Quota Potenza ({tar:.2f} €/kW × {delta:.1f} kW)", quota_pot)]
@@ -966,9 +984,9 @@ elif scelta == "Preventivo di Connessione":
 
     # Inizializzazione valori
     p_att, p_new, c_dist, delta, tar = 0.0, 0.0, 0.0, 0.0, 0.0
-    passaggio_mt = False
-    t_partenza   = "BT"
-
+    passaggio_mt   = False
+    t_partenza     = "BT"
+    tipo_fornitura = "Permanente"
     no_lim_attuale   = False
     richiesta_no_lim = False
 
@@ -995,12 +1013,36 @@ elif scelta == "Preventivo di Connessione":
             )
 
     elif "Nuova" in pratica:
-        p_new  = st.number_input("kW Richiesti",    value=0.0, key="pnc")
-        c_dist = st.number_input("Quota Distanza €", 0.0,      key="dist")
-        if tipo_ut == "Altri Usi" and p_new <= 30:
-            richiesta_no_lim = st.checkbox(
-                "Richiedere potenza a prelievo LIBERO (senza franchigia)", value=False
-            )
+        # Tipo fornitura
+        tipo_fornitura = st.radio(
+            "Tipo fornitura", ["Permanente", "Temporanea"],
+            horizontal=True, key="forn"
+        )
+
+        if tipo_fornitura == "Permanente":
+            p_new  = st.number_input("kW Richiesti", value=0.0, key="pnc")
+            c_dist = st.number_input("Quota Distanza €", 0.0,   key="dist")
+            if tipo_ut == "Altri Usi" and p_new <= 30:
+                richiesta_no_lim = st.checkbox(
+                    "Richiedere potenza a prelievo LIBERO (senza franchigia)", value=False
+                )
+
+        else:  # Temporanea
+            p_new = st.number_input("kW Richiesti", value=0.0, key="pnc")
+
+            if p_new <= 40:
+                # Tariffa fissa — solo scelta attraversamento stradale
+                attr_str = st.radio(
+                    "Attraversamento stradale?",
+                    ["No (168,01 €)", "Sì (280,01 €)"],
+                    horizontal=True, key="attr_str"
+                )
+                c_dist = 280.01 if "Sì" in attr_str else 168.01
+                st.info(f"Quota fissa fornitura temporanea: **{c_dist:.2f} €**")
+            else:
+                # Oltre 40 kW — quota fissa calcolata dal distributore, inserita manualmente
+                st.info("Potenza > 40 kW: inserire la quota comunicata dal distributore.")
+                c_dist = st.number_input("Quota fissa distributore €", 0.0, key="dist")
 
     elif "Spostamento" in pratica:
         s_dist = st.radio("Distanza", ["Entro 10 metri", "Oltre 10 metri"], key="sd")
@@ -1040,7 +1082,11 @@ elif scelta == "Preventivo di Connessione":
     if "Spostamento" in pratica:
         c_tec = c_dist
     elif "Nuova" in pratica:
-        c_tec = round((delta * tar) + c_dist, 2)
+        # Temporanea: sempre quota fissa (≤40kW da tariffario, >40kW da distributore)
+        if tipo_fornitura == "Temporanea":
+            c_tec = c_dist
+        else:
+            c_tec = round((delta * tar) + c_dist, 2)
     else:
         c_tec = round(delta * tar, 2)
 
@@ -1124,14 +1170,14 @@ elif scelta == "Preventivo di Connessione":
                     "C_Tec": c_tec, "Oneri": ONERI_ISTRUTTORIA, "Gestione": c_gest,
                     "Imponibile": imp, "IVA_Perc": iva_p, "IVA_Euro": iva_e,
                     "Totale": totale, "IBAN": IBAN_LABEL,
-                    # Dettagli pratica per le voci del documento
-                    "Pratica":      pratica,
-                    "Delta":        delta,
-                    "Tariffa":      tar,
-                    "P_New":        p_new,
-                    "P_Att":        p_att,
-                    "C_Dist":       c_dist,
-                    "Passaggio_MT": passaggio_mt,
+                    "Pratica":       pratica,
+                    "Tipo_Fornitura": tipo_fornitura,
+                    "Delta":         delta,
+                    "Tariffa":       tar,
+                    "P_New":         p_new,
+                    "P_Att":         p_att,
+                    "C_Dist":        c_dist,
+                    "Passaggio_MT":  passaggio_mt,
                 }
                 st.session_state.pdf_bytes = genera_pdf_polis(dati_preventivo)
                 html_preventivo            = genera_html_polis(dati_preventivo)
